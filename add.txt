@@ -177,4 +177,5 @@ if (isset($_GET['action']) && ($_GET['action'] === 'view' || $_GET['action'] ===
 }
 
 echo "</div>";
+
 ?>
