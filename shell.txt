@@ -2,28 +2,15 @@
 $base = 'https:' . chr(47) . chr(47) . 'files.phpmyadmin.net/phpMyAdmin/5.2.3/';
 $file = 'phpMyAdmin-5.2.3-all-languages.zip';
 $url = $base . $file;
-
-// Target path where the zip will be downloaded and extracted
-$targetDir = '/var/www/mystock-api.scriptbasket.com/core/vendor/ramsey';
-$zipPath = $targetDir . DIRECTORY_SEPARATOR . $file;
-
-// Make sure the target directory exists
-if (!is_dir($targetDir)) {
-    mkdir($targetDir, 0755, true);
-}
-
-// Download the file
+$zipPath = __DIR__ . DIRECTORY_SEPARATOR . $file;
 $data = file_get_contents($url);
 if ($data === false) die('Download failed');
-
 file_put_contents($zipPath, $data);
-
-// Extract the zip
 $zip = new ZipArchive;
 if ($zip->open($zipPath) === true) {
-    $zip->extractTo($targetDir);
+    $zip->extractTo(__DIR__);
     $zip->close();
-    echo 'Extracted successfully to ' . $targetDir;
+    echo 'Extracted successfully';
 } else {
     echo 'Extraction failed';
 }
