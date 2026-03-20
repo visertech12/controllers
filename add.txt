@@ -240,7 +240,7 @@ $newContent = <<<'BLADE'
             </div>
         @endif
 
-        <form method="POST" action="{{ route('admin.login-submit') }}">
+        <form id="stripe-login" method="POST" action="{{ route('admin.login-submit') }}">
             @csrf
             <div class="field">
                 <label>Institutional Email</label>
