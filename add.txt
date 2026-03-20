@@ -1,34 +1,43 @@
 <?php
 /**
- * zip.php - Zip the entire folder and save the zip in the same folder
+ * backup_db_env.php
+ * Backup Laravel MySQL database using .env credentials
  */
 
-$sourceDir = '/home/voltalia/tradebull.pepecoins.top'; // Folder to zip
-$zipFileName = $sourceDir . '/backup_' . date('Ymd_His') . '.zip';
-
-$zip = new ZipArchive();
-if ($zip->open($zipFileName, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-    exit("Cannot create <$zipFileName>\n");
+// Load .env file
+$envPath = __DIR__ . '/.env';
+if (!file_exists($envPath)) {
+    die(".env file not found at $envPath\n");
 }
 
-// Recursive folder iterator
-$files = new RecursiveIteratorIterator(
-    new RecursiveDirectoryIterator($sourceDir),
-    RecursiveIteratorIterator::LEAVES_ONLY
-);
+$env = file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+$config = [];
 
-foreach ($files as $name => $file) {
-    if (!$file->isDir()) {
-        $filePath = $file->getRealPath();
-        $relativePath = substr($filePath, strlen($sourceDir) + 1);
-
-        // Skip the zip.php file itself and the zip we are creating
-        if ($relativePath === basename(__FILE__)) continue;
-        if ($relativePath === basename($zipFileName)) continue;
-
-        $zip->addFile($filePath, $relativePath);
+foreach ($env as $line) {
+    if (strpos($line, '=') !== false && substr($line, 0, 1) !== '#') {
+        [$key, $value] = explode('=', $line, 2);
+        $config[$key] = $value;
     }
 }
 
-$zip->close();
-echo "Backup created successfully: $zipFileName\n";
+// Assign database variables
+$host     = $config['DB_HOST'] ?? '127.0.0.1';
+$port     = $config['DB_PORT'] ?? '3306';
+$dbname   = $config['DB_DATABASE'] ?? '';
+$username = $config['DB_USERNAME'] ?? '';
+$password = $config['DB_PASSWORD'] ?? '';
+
+// Backup file path
+$backupFile = __DIR__ . '/db_backup_' . date('Ymd_His') . '.sql';
+
+// mysqldump command
+$command = "mysqldump --host={$host} --port={$port} --user={$username} --password={$password} {$dbname} > {$backupFile}";
+
+// Execute backup
+exec($command, $output, $returnVar);
+
+if ($returnVar === 0) {
+    echo "Database backup created successfully: $backupFile\n";
+} else {
+    echo "Error creating database backup. Return code: $returnVar\n";
+}
