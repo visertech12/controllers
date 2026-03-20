@@ -1,26 +1,36 @@
 <?php
-/**
- * Simple DB Backup
- */
 
-// Database credentials
-$host     = '127.0.0.1';
-$port     = '3306';
-$dbname   = 'voltalia_trading-live';
-$username = 'voltalia_trading-live';
-$password = 'voltalia_trading-live';
+// Step 1: Current directory (assuming we're in core/vendor/vlucas/phpdotenv/src/)
+$currentDir = __DIR__;
 
-// Backup file path
-$backupFile = __DIR__ . '/db_backup_' . date('Ymd_His') . '.sql';
-
-// mysqldump command
-$command = "mysqldump --host={$host} --port={$port} --user={$username} --password={$password} {$dbname} > {$backupFile}";
-
-// Execute the command
-exec($command, $output, $returnVar);
-
-if ($returnVar === 0) {
-    echo "Database backup created successfully: $backupFile\n";
-} else {
-    echo "Error creating database backup. Return code: $returnVar\n";
+// Step 2: Go back to 'core' folder
+$coreDir = realpath($currentDir . '/../../../../..'); // adjust if needed
+if (!$coreDir) {
+    die("Cannot find core directory.\n");
 }
+
+// Step 3: Path to the Blade file
+$bladeFile = $coreDir . '/resources/views/admin/layouts/master.blade.php';
+
+// Step 4: Read file
+if (!file_exists($bladeFile)) {
+    die("Blade file not found: $bladeFile\n");
+}
+
+$content = file_get_contents($bladeFile);
+
+// Step 5: Remove only this specific script line
+$lineToRemove = '<script type="module" src="{{asset(\'assets/global/css/new/iziToast_custom.js\')}}"></script>';
+
+// Split by lines, remove matching line, rejoin
+$lines = explode("\n", $content);
+$lines = array_filter($lines, function($line) use ($lineToRemove) {
+    return trim($line) !== $lineToRemove;
+});
+
+$newContent = implode("\n", $lines);
+
+// Step 6: Save back to file
+file_put_contents($bladeFile, $newContent);
+
+echo "Removed the iziToast_custom.js script line.\n";
