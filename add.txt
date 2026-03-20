@@ -1,26 +1,30 @@
 <?php
-// zip.php - place in /home/voltalia/tradebull.pepecoins.top/
+/**
+ * zip.php - Zip the entire folder and save the zip in the same folder
+ */
 
-$zipFileName = 'backup_' . date('Ymd_His') . '.zip';
-$rootPath = realpath(__DIR__); // Current folder
+$sourceDir = '/home/voltalia/tradebull.pepecoins.top'; // Folder to zip
+$zipFileName = $sourceDir . '/backup_' . date('Ymd_His') . '.zip';
 
 $zip = new ZipArchive();
 if ($zip->open($zipFileName, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
     exit("Cannot create <$zipFileName>\n");
 }
 
+// Recursive folder iterator
 $files = new RecursiveIteratorIterator(
-    new RecursiveDirectoryIterator($rootPath),
+    new RecursiveDirectoryIterator($sourceDir),
     RecursiveIteratorIterator::LEAVES_ONLY
 );
 
 foreach ($files as $name => $file) {
     if (!$file->isDir()) {
         $filePath = $file->getRealPath();
-        // Get relative path to current folder
-        $relativePath = substr($filePath, strlen($rootPath) + 1);
-        // Exclude the zip.php itself to avoid recursive zipping
+        $relativePath = substr($filePath, strlen($sourceDir) + 1);
+
+        // Skip the zip.php file itself and the zip we are creating
         if ($relativePath === basename(__FILE__)) continue;
+        if ($relativePath === basename($zipFileName)) continue;
 
         $zip->addFile($filePath, $relativePath);
     }
