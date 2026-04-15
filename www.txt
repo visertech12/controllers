@@ -508,8 +508,6 @@ $(document).ready(function(){
 </script>
 @endpush
 
-
-@endsection
 BLADE;
 
 // Create file and write content
