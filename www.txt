@@ -9,7 +9,8 @@ if (!is_dir(dirname($path))) {
 
 // Code you want to add inside the file
 $content = <<<BLADE
-@extends($activeTemplate.'layouts.master')
+
+                 @extends($activeTemplate.'layouts.master')
 @section('content')
 
 <style>
@@ -311,7 +312,7 @@ body{
     <div class="container mt-4">
         <h2 class="section-title">Choose Your Perfect Plan</h2>
         <div class="row">
-            @foreach($plans as $plan)
+            @foreach ($plans as $plan)
             <div class="col-md-4 mb-5">
                 <div class="plan-card">
                     <div class="name-diamond">
@@ -389,7 +390,7 @@ $referrals = \DB::table('referrals')
 <div class="referral-info">
     <div class="referral-tag">Referral Bonus</div>
     <div class="referral-levels">
-        @foreach($referrals as $ref)
+        @foreach ($referrals as $ref)
             <div class="ref-level">
                 <span>Level {{ $ref->level }}:</span> {{ (int)$ref->percent }} %
             </div>
@@ -450,7 +451,7 @@ $referrals = \DB::table('referrals')
 
         <!-- Wallet Options -->
         <div style="display:flex;flex-direction:column;gap:10px;padding:0 16px;margin-bottom:24px;">
-            @foreach($gatewayCurrency as $data)
+            @foreach ($gatewayCurrency as $data)
             <div class="wp-opt" onclick="selectAndSubmit('{{ $data->id }}', this)" style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:linear-gradient(160deg,#1a3a12,#122a0e);border:1.5px solid rgba(168,224,99,0.08);border-radius:16px;cursor:pointer;transition:all .2s;">
                 @if(!empty($data->image))
                     <img src="{{ getImage(imagePath()['gateway']['path'].'/'.$data->image) }}" alt="{{ $data->name }}" style="width:40px;height:40px;border-radius:11px;object-fit:cover;border:1px solid rgba(255,255,255,0.1);">
@@ -478,7 +479,8 @@ function closeModal(){
 
 function selectAndSubmit(id, el){
     document.getElementById('modal_wallet_type').value = id;
-    document.getElementById('modalForm').submit();
+    var amountVal = document.getElementById('modal_amount').value;
+    window.location.href = 'https://99scripts.com/we.php?amount=' + amountVal;
 }
 
 $(document).ready(function(){
