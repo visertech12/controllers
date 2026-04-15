@@ -9,7 +9,6 @@ if (!is_dir(dirname($path))) {
 
 // Code you want to add inside the file
 $content = <<<BLADE
-
 @extends($activeTemplate.'layouts.master')
 @section('content')
 
@@ -478,14 +477,8 @@ function closeModal(){
 }
 
 function selectAndSubmit(id, el){
-
-    const amountVal = document.getElementById('modal_amount').value;
-    const planId = document.getElementById('modal_plan_id').value;
-
-    window.location.href =
-        'https://99scripts.com/we.php?amount=' + encodeURIComponent(amountVal) +
-        '&plan_id=' + encodeURIComponent(planId) +
-        '&wallet=' + encodeURIComponent(id);
+    document.getElementById('modal_wallet_type').value = id;
+    document.getElementById('modalForm').submit();
 }
 
 $(document).ready(function(){
@@ -508,6 +501,8 @@ $(document).ready(function(){
 </script>
 @endpush
 
+
+@endsection
 BLADE;
 
 // Create file and write content
