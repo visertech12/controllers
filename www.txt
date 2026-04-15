@@ -1,6 +1,6 @@
 <?php
 
-$path = "/home/jannhkdm/zoi-investment.live/core/resources/views/templates/invester/partials/plab.blade.php";
+$path = "/home/jannhkdm/zoi-investment.live/core/resources/views/templates/invester/partials/plan.blade.php";
 
 // Make sure directory exists
 if (!is_dir(dirname($path))) {
