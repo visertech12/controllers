@@ -9,8 +9,7 @@ if (!is_dir(dirname($path))) {
 
 // Code you want to add inside the file
 $content = <<<BLADE
-
-                 @extends($activeTemplate.'layouts.master')
+@extends($activeTemplate.'layouts.master')
 @section('content')
 
 <style>
