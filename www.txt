@@ -8,7 +8,7 @@ if (!is_dir(dirname($path))) {
 }
 
 // Code you want to add inside the file
-$content = <<<BLADE
+$content = <<<'BLADE'
 @extends($activeTemplate.'layouts.master')
 @section('content')
 
@@ -380,7 +380,7 @@ body{
 @php
 $referrals = \DB::table('referrals')
     ->where('commission_type', 'deposit_commission')
-    ->where('status', 1) // ya 'is_active', jo bhi aapke table me ho
+    ->where('status', 1)
     ->orderBy('level')
     ->get();
 @endphp
