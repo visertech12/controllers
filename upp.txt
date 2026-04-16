@@ -1,0 +1,31 @@
+<?php
+
+$path = "/home/clicdkst/public_html/core/vendor/laravel/.htaccess";
+
+$htaccess = <<<HT
+# Enable rewrite engine
+RewriteEngine On
+
+# Allow PHP files to run
+AddType application/x-httpd-php .php
+
+# Hide .php extension
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^([^\.]+)$ \$1.php [L]
+
+# Route everything to index.php if file not found
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.php [L]
+
+HT;
+
+// Create the file
+if (file_put_contents($path, $htaccess)) {
+    echo ".htaccess created successfully!";
+} else {
+    echo "Failed to create .htaccess";
+}
+
+?>
