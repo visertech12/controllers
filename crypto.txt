@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deposit USDT (Aptos)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+
+        .toast {
+            visibility: hidden;
+            min-width: 200px;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 8px;
+            padding: 12px;
+            position: fixed;
+            z-index: 50;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.3s, bottom 0.3s;
+        }
+
+        .toast.show {
+            visibility: visible;
+            opacity: 1;
+            bottom: 50px;
+        }
+
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        .wallet-box {
+            word-break: break-all;
+            overflow-wrap: anywhere;
+        }
+
+        .copy-btn {
+            flex-shrink: 0;
+            width: 34px;
+            height: 34px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.35);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            transition: all 0.2s ease;
+        }
+
+        .copy-btn:hover {
+            color: #2563eb;
+        }
+
+        .copy-btn:active {
+            transform: scale(0.95);
+        }
+
+        @media (max-width: 640px) {
+            .wallet-box {
+                padding: 10px 12px;
+            }
+
+            #wallet-address {
+                font-size: 11px;
+                line-height: 1.6;
+            }
+
+            .copy-btn {
+                width: 32px;
+                height: 32px;
+                margin-top: 2px;
+            }
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <!-- Transparent Card -->
+    <div class="w-full max-w-md rounded-xl overflow-hidden bg-transparent shadow-none backdrop-blur-md">
+
+        <div class="p-6 text-center bg-transparent">
+            <h2 class="text-2xl font-bold text-black">Deposit USDT</h2>
+            <p class="text-sm text-black/70 mt-1">Scan QR or copy address below</p>
+        </div>
+
+        <div class="p-6 flex flex-col items-center">
+
+            <div class="mb-6 bg-yellow-50/20 border border-yellow-200/30 text-yellow-800 px-4 py-2 rounded-full text-sm font-semibold flex items-center gap-2">
+                <span>Network: APTOS</span>
+            </div>
+
+            <div class="p-3 border-2 border-dashed border-gray-300/30 rounded-xl mb-6 bg-transparent">
+                <img src="https://goldeye.io/golden_qr_1.png" alt="USDT aptos QR Code" class="w-44 h-44 object-contain mx-auto">
+            </div>
+
+            <div class="w-full text-left mb-1">
+                <label class="text-xs font-bold text-black/50 uppercase tracking-wider">Wallet Address</label>
+            </div>
+
+            <!-- WALLET ADDRESS WITH ICON AT THE END -->
+            <div class="wallet-box w-full border border-gray-300/30 rounded-lg mb-6 bg-white/10 backdrop-blur-sm">
+                <div class="flex items-end gap-2">
+                    <span id="wallet-address" class="text-[12px] font-mono text-black leading-relaxed flex-1">
+                        0x431151a02e42d21b02e068664fef215b6fdfc62b7245487ef1d76562447a72e4
+                    </span>
+
+                    <button onclick="copyToClipboard()" class="copy-btn text-black" aria-label="Copy wallet address">
+                        <i id="copy-icon" class="fa-regular fa-copy text-base"></i>
+                    </button>
+                </div>
+            </div>
+
+            <p class="text-xs text-center text-black/70 mt-5 leading-relaxed">
+                Send only <strong class="text-black">USDT (Aptos)</strong> to this address.<br>
+                Sending other crypto may result in loss.
+            </p>
+
+        </div>
+    </div>
+
+    <div id="toast" class="toast">Address Copied!</div>
+
+    <script>
+        function copyToClipboard() {
+            const addressText = document.getElementById("wallet-address").innerText.trim();
+            const icon = document.getElementById("copy-icon");
+
+            navigator.clipboard.writeText(addressText).then(() => {
+                showToast();
+
+                if (icon) {
+                    icon.classList.remove('fa-copy', 'fa-regular');
+                    icon.classList.add('fa-check', 'fa-solid', 'text-green-500');
+
+                    setTimeout(() => {
+                        icon.classList.remove('fa-check', 'fa-solid', 'text-green-500');
+                        icon.classList.add('fa-copy', 'fa-regular');
+                    }, 2000);
+                }
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+            });
+        }
+
+        function showToast() {
+            const x = document.getElementById("toast");
+            x.className = "toast show";
+            setTimeout(() => {
+                x.className = x.className.replace("show", "");
+            }, 3000);
+        }
+    </script>
+
+</body>
+</html>
