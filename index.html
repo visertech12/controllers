@@ -1,30 +1,369 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Page</title>
-<script src="https://pl29238943.profitablecpmratenetwork.com/68/b2/47/68b247f1ec4dacab191ae9cb4ed62fb7.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Minimalist Workspace | Modern Life</title>
+  <script src="https://pl29238943.profitablecpmratenetwork.com/68/b2/47/68b247f1ec4dacab191ae9cb4ed62fb7.js"></script>
 
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600&display=swap');
+
+        :root {
+            --bg-main: #ffffff;
+            --bg-secondary: #f8fafc;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --border: #e2e8f0;
+            --font-heading: 'Playfair Display', serif;
+            --font-body: 'Inter', sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--bg-secondary);
+            color: var(--text-main);
+            font-family: var(--font-body);
+            line-height: 1.7;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Navigation */
+        header {
+            background-color: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-family: var(--font-heading);
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-main);
+            text-decoration: none;
+            letter-spacing: -0.5px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: 0.95rem;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--accent);
+        }
+
+        /* Main Layout */
+        .page-container {
+            max-width: 1200px;
+            margin: 40px auto;
+            padding: 0 20px;
+            display: grid;
+            grid-template-columns: 1fr 320px;
+            gap: 60px;
+            align-items: start;
+        }
+
+        @media (max-width: 968px) {
+            .page-container {
+                grid-template-columns: 1fr;
+            }
+            .nav-links {
+                display: none;
+            }
+        }
+
+        /* Article Styles */
+        article {
+            background: var(--bg-main);
+            padding: 50px;
+            border-radius: 24px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.03);
+        }
+
+        @media (max-width: 768px) {
+            article {
+                padding: 30px 20px;
+            }
+        }
+
+        .category-tag {
+            color: var(--accent);
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        h1 {
+            font-family: var(--font-heading);
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            line-height: 1.2;
+            color: var(--text-main);
+            margin-bottom: 25px;
+        }
+
+        .author-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 40px;
+            padding-bottom: 25px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--accent);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 1.2rem;
+        }
+
+        .author-details p {
+            margin: 0;
+            line-height: 1.4;
+        }
+
+        .author-name {
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .publish-date {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .hero-image {
+            width: 100%;
+            height: auto;
+            max-height: 500px;
+            object-fit: cover;
+            border-radius: 16px;
+            margin-bottom: 40px;
+        }
+
+        .content {
+            font-size: 1.1rem;
+            color: #334155;
+        }
+
+        .content p {
+            margin-bottom: 24px;
+        }
+
+        /* Drop cap for first paragraph */
+        .content > p:first-of-type::first-letter {
+            font-family: var(--font-heading);
+            font-size: 4rem;
+            line-height: 0.8;
+            float: left;
+            margin-right: 12px;
+            margin-top: 5px;
+            color: var(--accent);
+            font-weight: 700;
+        }
+
+        h2 {
+            font-family: var(--font-heading);
+            font-size: 2rem;
+            margin: 40px 0 20px;
+            color: var(--text-main);
+        }
+
+        /* Ads */
+        .ad-inline {
+            margin: 40px 0;
+            padding: 30px;
+            background: var(--bg-secondary);
+            border-radius: 16px;
+            text-align: center;
+            border: 1px dashed #cbd5e1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .ad-inline img {
+            width: 100%;
+            max-width: 500px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin: 15px 0;
+        }
+
+        .ad-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.05);
+            color: var(--text-muted);
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+
+        .sidebar-ad {
+            position: sticky;
+            top: 100px;
+            background: var(--bg-main);
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.03);
+            text-align: center;
+        }
+
+        .sidebar-ad img {
+            width: 100%;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .ad-title {
+            font-family: var(--font-heading);
+            font-size: 1.4rem;
+            margin-bottom: 10px;
+        }
+
+        .ad-desc {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            display: inline-block;
+            background: var(--text-main);
+            color: white;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.2s;
+            width: 100%;
+        }
+
+        .btn:hover {
+            background: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        /* Footer */
+        footer {
+            background: var(--text-main);
+            color: white;
+            padding: 60px 20px;
+            text-align: center;
+            margin-top: 60px;
+        }
+
+    </style>
 </head>
-<body style="margin:0; display:flex; justify-content:center; align-items:center; height:100vh; font-family:Arial;">
+<body>
 
-  <button onclick="goBack()" style="
-    padding:15px 25px;
-    font-size:18px;
-    background:#ff3b3b;
-    color:white;
-    border:none;
-    border-radius:8px;
-    cursor:pointer;
-  ">
-    ⬅ Go Back
-  </button>
+    <header>
+        <div class="nav-container">
+            <a href="#" class="logo">Lumina.</a>
+            <ul class="nav-links">
+                <li><a href="#">Design</a></li>
+                <li><a href="#">Technology</a></li>
+                <li><a href="#">Lifestyle</a></li>
+            </ul>
+        </div>
+    </header>
 
-  <script>
-    function goBack() {
-      window.history.back();
-    }
-  </script>
+    <div class="page-container">
+        <main>
+            <article>
+                <span class="category-tag">Lifestyle & Design</span>
+                <h1>Finding Clarity in the Modern Workspace</h1>
+                
+                <div class="author-info">
+                    <div class="avatar">ER</div>
+                    <div class="author-details">
+                        <p class="author-name">Elena Rostova</p>
+                        <p class="publish-date">Published on April 24, 2026 • 6 min read</p>
+                    </div>
+                </div>
+
+                <img src="file:///C:/Users/Ahmad/.gemini/antigravity/brain/b5f0ec94-cadc-4ca3-a46c-38762eca1ea9/light_hero_1776985738596.png" alt="Clean Workspace" class="hero-image">
+
+                <div class="content">
+                    <p>In an era defined by constant digital noise, the physical space we inhabit has become our sanctuary. The minimalist workspace is no longer just an aesthetic choice; it is a psychological necessity for deep work and genuine creativity. When we strip away the superfluous, we leave room for the essential.</p>
+
+                    <p>Consider the objects that surround you right now. Do they serve a functional purpose, or do they bring you aesthetic joy? If the answer to both is no, they are likely contributing to visual clutter, which directly correlates to cognitive load.</p>
+
+                    <h2>The Architecture of Focus</h2>
+                    <p>True minimalism isn't about working in a sterile, empty box. It's about intentionality. A well-placed plant, a carefully chosen coffee mug, and natural light are not clutter; they are anchors that connect us to the physical world while our minds navigate the digital one.</p>
+
+                    <!-- Inline Advertisement -->
+                    <div class="ad-inline">
+                        <span class="ad-badge">Sponsored</span>
+                        <h3 style="font-family: var(--font-heading); margin-bottom: 10px;">Elevate Your Environment</h3>
+                        <p style="color: var(--text-muted); font-size: 0.95rem;">Discover the new standard in smart home automation.</p>
+                        <img src="file:///C:/Users/Ahmad/.gemini/antigravity/brain/b5f0ec94-cadc-4ca3-a46c-38762eca1ea9/light_ad_1776985992285.png" alt="Smart Home Ad">
+                        <br>
+                        <a href="#" class="btn" style="width: auto; padding: 10px 30px;">Explore the Collection</a>
+                    </div>
+
+                    <p>Implementing this requires a shift in perspective. Start by completely clearing your desk. Only introduce items back as they are needed. You'll quickly find that the list of truly necessary objects is surprisingly short.</p>
+
+                    <h2>Designing for Longevity</h2>
+                    <p>Ultimately, a workspace should evolve with you. By establishing a clean baseline, you create a dynamic environment that can adapt to different projects and moods without ever feeling overwhelming. Embrace the white space.</p>
+                </div>
+            </article>
+        </main>
+
+        <aside>
+            <div class="sidebar-ad">
+                <span class="ad-badge" style="position: static; display: inline-block; margin-bottom: 15px;">Advertisement</span>
+                <img src="file:///C:/Users/Ahmad/.gemini/antigravity/brain/b5f0ec94-cadc-4ca3-a46c-38762eca1ea9/light_ad_1776985992285.png" alt="Sidebar Ad Product">
+                <h3 class="ad-title">Aura Smart Thermostat</h3>
+                <p class="ad-desc">Seamless integration. Unmatched design. Control your climate with elegance.</p>
+                <a href="#" class="btn">Shop Aura</a>
+            </div>
+        </aside>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 Lumina Media. All rights reserved.</p>
+    </footer>
 
 </body>
 </html>
