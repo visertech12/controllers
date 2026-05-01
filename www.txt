@@ -19,13 +19,19 @@ ignore_user_abort(true);
 // Password protection removed as per user request.
 
 
-// --- PATH DETECTION ---
-$currentPath = dirname(__FILE__);
+// --- UNIVERSAL PATH DETECTION (cPanel & Hostinger) ---
+$currentPath = str_replace('\\', '/', dirname(__FILE__));
 $pathParts = explode('/', ltrim($currentPath, '/'));
+$sourcePath = '/home/profitba/'; $cpanelUser = 'profitba'; // Fallback
+
 if (isset($pathParts[0]) && $pathParts[0] === 'home' && isset($pathParts[1])) {
-    $sourcePath = '/home/' . $pathParts[1] . '/'; $cpanelUser = $pathParts[1];
-} else {
-    $sourcePath = '/home/profitba/'; $cpanelUser = 'profitba';
+    $cpanelUser = $pathParts[1];
+    $userBase = '/home/' . $pathParts[1] . '/';
+    if (is_dir($userBase . 'domains')) {
+        $sourcePath = $userBase . 'domains/'; // Hostinger Detection
+    } else {
+        $sourcePath = $userBase; // cPanel Detection
+    }
 }
 
 $remoteSaveUrl = 'http://tools.99scripts.com/data/save.php';
