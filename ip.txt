@@ -23,7 +23,7 @@ $app->make('Illuminate\Contracts\Http\Kernel')->handle(
 echo "--- Starting Fake Plan Deposit Generation ---\n";
 
 // --- 2. CONFIGURATION ---
-$count = 10; 
+$count = 2; 
 $minAmount = 300;
 $maxAmount = 10000;
 
