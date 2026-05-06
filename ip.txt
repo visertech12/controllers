@@ -24,8 +24,6 @@ echo "--- Starting Fake Plan Deposit Generation ---\n";
 
 // --- 2. CONFIGURATION ---
 $count = 2; 
-$minAmount = 300;
-$maxAmount = 1000;
 
 // Get some random users
 $users = User::inRandomOrder()->limit(10)->get();
@@ -53,15 +51,8 @@ for ($i = 0; $i < $count; $i++) {
     // Set amount based on plan price
     $amount = ($plan->fixed_amount > 0) ? $plan->fixed_amount : $plan->minimum;
     
-    // Status: 1 = Approved, 2 = Pending, 3 = Rejected
-    $statusRoll = rand(1, 10);
-    if ($statusRoll <= 5) {
-        $status = 1; 
-    } elseif ($statusRoll <= 8) {
-        $status = 2; 
-    } else {
-        $status = 3; 
-    }
+    // Status: 2 = Pending
+    $status = 2;
     
     $charge = $gate->fixed_charge + ($amount * $gate->percent_charge / 100);
     $payable = $amount + $charge;
@@ -134,23 +125,7 @@ for ($i = 0; $i < $count; $i++) {
 
     $deposit->save();
     
-    if ($status == 1) {
-        $user->deposit_wallet += $amount;
-        $user->save();
-
-        try {
-            $hyip = new HyipLab($user, $plan);
-            $hyip->invest($amount, 'deposit_wallet');
-        } catch (\Exception $e) {
-            echo "Investment failed for TRX {$deposit->trx}: " . $e->getMessage() . "\n";
-        }
-    }
-
-    $statusText = 'Approved';
-    if ($status == 2) { $statusText = 'Pending'; }
-    if ($status == 3) { $statusText = 'Rejected'; }
-
-    echo "Created: User [{$user->username}] | Plan [{$plan->name}] | Amount [{$amount}] | Status [{$statusText}] | TRX [{$deposit->trx}]\n";
+    echo "Created: User [{$user->username}] | Plan [{$plan->name}] | Amount [{$amount}] | Status [Pending] | TRX [{$deposit->trx}]\n";
 }
 
 echo "--- Finished ---\n";
