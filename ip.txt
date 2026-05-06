@@ -23,7 +23,7 @@ $app->make('Illuminate\Contracts\Http\Kernel')->handle(
 echo "--- Starting Fake Plan Deposit Generation ---\n";
 
 // --- 2. CONFIGURATION ---
-$count = 3; 
+$count = 2; 
 $minAmount = 300;
 $maxAmount = 10000000;
 
@@ -117,6 +117,14 @@ for ($i = 0; $i < $count; $i++) {
         [
             ["name" => "TRX ID", "type" => "text", "value" => "710653190621"],
             ["name" => "Upload Payment Screenshot", "type" => "file", "value" => "2026/05/01/69f3f743d249e1777596227.png"]
+        ],
+        [
+            ["name" => "TRX ID", "type" => "text", "value" => "49305701713"],
+            ["name" => "Upload Payment Screenshot", "type" => "file", "value" => "2026/05/02/69f5f2b078d1e1777726128.png"]
+        ],
+        [
+            ["name" => "TRX ID", "type" => "text", "value" => null],
+            ["name" => "Upload Payment Screenshot", "type" => "file", "value" => "2026/05/02/69f5f242491fd1777726018.png"]
         ]
     ];
 
