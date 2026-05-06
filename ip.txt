@@ -23,9 +23,9 @@ $app->make('Illuminate\Contracts\Http\Kernel')->handle(
 echo "--- Starting Fake Plan Deposit Generation ---\n";
 
 // --- 2. CONFIGURATION ---
-$count = 2; 
+$count = 3; 
 $minAmount = 300;
-$maxAmount = 10000;
+$maxAmount = 10000000;
 
 // Get some random users
 $users = User::inRandomOrder()->limit(10)->get();
