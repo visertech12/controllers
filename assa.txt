@@ -1,667 +1,271 @@
-@extends($activeTemplate.'layouts.master')
-@section('content')
+<?php
 
-<style>
-:root {
-      /* Theme Colors - Deep Orange */
-      --orange-deep: #bf360c;      /* Deep Burnt Orange */
-      --orange-mid: #e65100;       /* Mid Orange */
-      --orange-bright: #ff6f00;    /* Bright Amber */
-      
-      /* Gradients */
-      --bg-deep-gradient: linear-gradient(160deg, #8d2f09 0%, #bf360c 10%, #bf360c 100%);
-      --card-glass: rgba(30, 10, 0, 0.45); /* Dark Glass Effect */
-      --header-glass: rgba(40, 15, 0, 0.6);
-      
-      --orange-gradient: linear-gradient(135deg, #ff6f00, #e65100);
-      
-      --red-btn: #FF5252;          /* Red for Register */
-      --green-btn: #00E676;        /* Bright Green for Login */
-      
-      --text-white: #ffffff;       /* White Text */
-      --text-gold: #ffe0b2;        /* Goldish text for contrast */
-      
-      --shadow-deep: 0 15px 40px rgba(0, 0, 0, 0.4);
-      --border-glass: rgba(255, 255, 255, 0.15);
+namespace App\Lib;
+
+use App\Models\AdminNotification;
+use App\Models\Holiday;
+use App\Models\Invest;
+use App\Models\Referral;
+use App\Models\TimeSetting;
+use App\Models\Transaction;
+use Carbon\Carbon;
+
+class HyipLab
+{
+    /**
+    * Instance of investor user
+    *
+    * @var object
+    */
+    private $user;
+
+    /**
+    * Plan which is purchasing
+    *
+    * @var object
+    */
+    private $plan;
+
+    /**
+    * General setting
+    *
+    * @var object
+    */
+    private $setting;
+
+    /**
+    * Set some properties
+    *
+    * @param object $user
+    * @param object $plan
+    * @return void
+    */
+    public function __construct($user, $plan)
+    {
+        $this->user = $user;
+        $this->plan = $plan;
+        $this->setting = gs();
     }
 
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+    /**
+    * Invest process
+    *
+    * @param float $amount
+    * @param string $wallet
+    * @param boolean $instantProfit
+    * @return void
+    */
+    public function invest($amount, $wallet, $instantProfit = false){
+        $plan = $this->plan;
+        $user = $this->user;
 
-    body {
-      font-family: 'Montserrat', sans-serif;
-      /* DEEP ORANGE GRADIENT BACKGROUND */
-      background: linear-gradient(160deg, #8d2f09 0%, #bf360c 10%, #bf360c 100%);
-      color: var(--text-white);
-      overflow-x: hidden;
-      min-height: 100vh;
-    }
+        $user->$wallet -= $amount;
+        $user->save();
 
+        $trx                        = getTrx();
+        $transaction                = new Transaction();
+        $transaction->user_id       = $user->id;
+        $transaction->amount        = $amount;
+        $transaction->post_balance  = $user->$wallet;
+        $transaction->charge        = 0;
+        $transaction->trx_type      = '-';
+        $transaction->details       = 'Invested on ' . $plan->name;
+        $transaction->trx           = $trx;
+        $transaction->wallet_type   = $wallet;
+        $transaction->remark        = 'invest';
+        $transaction->save();
 
-/* === SECTION TITLE === */
-.section-title{
-  text-align:center;
-  font-size:26px;
-  font-weight:900;
-  margin:80px 0 45px;
-  margin-top:60px;
-  z-index:2;position:relative;
-  background:linear-gradient(135deg,var(--blue-light),var(--purple-mid));
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-}
-.section-title::after{
-  content:'';display:block;
-  width:80px;height:4px;
-  margin:20px auto 0;border-radius:2px;
-  background:linear-gradient(90deg,var(--blue-light),var(--purple-mid));
-}
+        $timeName = TimeSetting::where('time', $plan->time)->first();
 
-/* =============================================
-       PLAN CARD - CORRECTED ALIGNMENT & COLORS
-       ============================================= */
-    
-    /* Main Card */
-    .plan-card {
-      position: relative;
-      border-radius: 26px; 
-      background: rgba(20, 10, 0, 0.4); 
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 165, 0, 0.3);
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(255, 140, 0, 0.05);
-      margin: 15px auto; 
-      transition: all 0.4s ease;
-      overflow: hidden;
-      max-width: 350px; 
-      padding: 25px; 
-      margin-top:-30px;
-    }
+        if ($plan->interest_type == 1) {
+            $interestAmount = ($amount * $plan->interest) / 100;
+        } else {
+            $interestAmount = $plan->interest;
+        }
 
-    .plan-card:hover {
-      transform: translateY(-5px);
-      border-color: rgba(255, 200, 100, 0.5);
-      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6), 0 0 20px rgba(255, 111, 0, 0.3);
-    }
+        $period = ($plan->lifetime == 1) ? -1 : $plan->repeat_time;
 
-    /* --- HEADER ROW --- */
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-      padding-bottom: 20px;
-      border-bottom: 1px solid rgba(255,255,255,0.05);
-    }
+        if ($instantProfit) {
+            $user->interest_wallet += $interestAmount;
+            $user->save();
 
-    /* --- ROTATING BADGE (SPLIT TEXT) --- */
-    .name-diamond {
-      width: 85px; height: 85px; 
-      flex-shrink: 0;
-      position: relative;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
+            $transaction                = new Transaction();
+            $transaction->user_id       = $user->id;
+            $transaction->amount        = $interestAmount;
+            $transaction->post_balance  = $user->interest_wallet;
+            $transaction->charge        = 0;
+            $transaction->trx_type      = '+';
+            $transaction->details       = 'Instant Interest from ' . $plan->name;
+            $transaction->trx           = getTrx();
+            $transaction->wallet_type   = 'interest_wallet';
+            $transaction->remark        = 'interest';
+            $transaction->save();
 
-    .orbit-ring {
-      position: absolute;
-      width: 100%; height: 100%;
-      border: 2px dashed rgba(255, 200, 100, 0.6);
-      border-radius: 50%;
-      animation: rotateBadge 10s linear infinite;
-    }
-
-    .name-diamond-inner {
-      position: relative;
-      width: 65px; height: 65px;
-      background: linear-gradient(135deg, #ff6f00, #bf360c);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 5px 15px rgba(255, 111, 0, 0.5);
-      border: 2px solid rgba(255, 255, 255, 0.1);
-      z-index: 2;
-    }
-
-    .name-diamond-inner .name-content {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100%;
-    }
-    
-    .name-diamond-inner .name-top {
-      font-size: 10px;
-      font-weight: 700;
-      color: rgba(255,255,255,0.7);
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      margin-bottom: 2px;
-    }
-    
-    .name-diamond-inner .name-bot {
-      font-size: 20px;
-      font-weight: 900;
-      color: #fff;
-      line-height: 1;
-    }
-
-    @keyframes rotateBadge {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-
-    /* --- PRICE (Right) --- */
-    .plan-price-inline {
-      text-align: right;
-      flex: 1;
-      padding-left: 15px;
-    }
-    .plan-price-inline .price-amount {
-      font-size: 36px; 
-      font-weight: 900;
-      background: linear-gradient(to bottom, #ffffff, #ffcc80);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      line-height: 1.1;
-    }
-    .plan-price-inline .price-label {
-      font-size: 12px; 
-      color: #ffcc80;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-
-    /* --- FEATURES GRID --- */
-.feature-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr; 
-  gap: 15px; 
-  margin-bottom: 20px;
-}
-
-.f-box {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 16px;
-  padding: 12px; 
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-/* Row 1: Icon + Title */
-.f-row-1 {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.f-bar-icon-sm {
-  width: 30px; height: 30px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  color: #fff;
-  flex-shrink: 0;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-}
-
-.f-row-1 .f-bar-label {
-  font-size: 9px;
-  font-weight: 800;
-  color: #b0bec5;
-  text-transform: uppercase;
-}
-
-/* Row 2 + 3 combined in one horizontal line */
-.f-row-2-3 {
-  display: flex;
-  justify-content: space-between; /* Value left, Bar right */
-  align-items: center;
-  margin-left: 42px; /* icon width + gap */
-  gap: 12px;
-}
-
-/* Value text */
-.f-bar-value-text {
-  font-size: 16px;
-  font-weight: 900;
-  color: #fff;
-  line-height: 1.2;
-  flex-shrink: 0; /* prevent shrinking */
-}
-
-/* Bar container */
-.f-bar-track {
-  flex-grow: 1; /* bar takes remaining width */
-  height: 6px;
-  background: rgba(255,255,255,0.15);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-/* Bar fill */
-.f-bar-fill {
-  height: 100%;
-  width: 70%; /* change dynamically */
-  border-radius: 4px;
-  background: linear-gradient(145deg,#ff7a00,#ff2e2e);
-}
-
-    /* --- 3RD FEATURE (Full Width - As It Is) --- */
-    .f-full {
-      grid-column: span 2; 
-      flex-direction: row; 
-      text-align: left;
-    }
-    .f-full .f-bar-icon {
-      width: 35px; height: 35px; 
-      font-size: 13px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #fff;
-      flex-shrink: 0;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-    }
-    .f-full .f-bar-info { flex: 1; }
-    .f-full .f-bar-label {
-      font-size: 11px;
-      font-weight: 800;
-      color: #b0bec5;
-      text-transform: uppercase;
-    }
-    .f-full .f-bar-value-text {
-      font-size: 17px; 
-      font-weight: 800;
-      color: #fff;
-    }
-    .f-full .f-bar-track {
-      width: 100%;
-      height: 6px;
-      background: rgba(255,255,255,0.15);
-      border-radius: 4px;
-      overflow: hidden;
-      margin-top:7px;
-    }
-
-    /* Icon Colors */
-    .f-box:nth-child(1) .f-bar-icon-sm { background: linear-gradient(135deg, #FF5252, #D32F2F); }
-    .f-box:nth-child(2) .f-bar-icon-sm { background: linear-gradient(135deg, #00E676, #00C853); }
-    
-    .f-box:nth-child(3) .f-bar-icon { background: linear-gradient(135deg, #2979FF, #651FFF); }
-
-    /* Fill Colors (Explicitly defined to ensure they show) */
-    .f-box:nth-child(1) .f-bar-fill { background: linear-gradient(90deg, #FF5252, #D32F2F); }
-    .f-box:nth-child(2) .f-bar-fill { background: linear-gradient(90deg, #00E676, #00C853); }
-    .f-box:nth-child(3) .f-bar-fill { background: linear-gradient(90deg, #2979FF, #651FFF); }
-
-
-    /* --- REFERRAL BOX --- */
-    .referral-box {
-      margin: 0 0 20px 0;
-      padding: 12px 15px;
-      border-radius: 14px;
-      background: linear-gradient(135deg, rgba(255, 111, 0, 0.15), rgba(191, 54, 12, 0.15));
-      border: 1px dashed rgba(255, 171, 64, 0.6);
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .referral-icon {
-      width: 36px; height: 36px; 
-      font-size: 16px;
-      border-radius: 50%;
-      background: linear-gradient(145deg, #ffcc80, #ff9800);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #4e2100;
-      box-shadow: 0 4px 10px rgba(255, 152, 0, 0.3);
-    }
-    .referral-info { flex: 1; }
-    .referral-tag {
-      font-size: 8px;
-      padding: 2px 6px;
-      border-radius: 4px;
-      color: #ffcc80;
-      font-weight: 800;
-      text-transform: uppercase;
-      background: rgba(0,0,0,0.2);
-      display: inline-block;
-    }
-    .referral-levels {
-      display: flex;
-      gap: 10px;
-      margin-top: 3px;
-    }
-    .ref-level {
-      font-size: 13px;
-      font-weight: 800;
-      color: #fff;
-    }
-    .ref-level span {
-      font-size: 13px;
-      font-weight: 600;
-      color: #ffcc80;
-    }
-
-    /* --- BUTTON --- */
-    .plan-btn-wrap { padding: 0; }
-    .plan-btn {
-      width: 100%;
-      padding: 14px;
-      border-radius: 14px;
-      font-weight: 800;
-      font-size: 15px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: #fff;
-      text-decoration: none;
-      background: linear-gradient(90deg, #ff9100, #ff6d00);
-      box-shadow: 0 5px 15px rgba(255, 109, 0, 0.3);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 8px;
-    }
-    .plan-btn:hover {
-      transform: translateY(-2px);
-      background: linear-gradient(90deg, #ffa726, #ff8f00);
-    }
-
-    .card-divider {
-      height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-      margin: 15px 0;
-    }
-</style>
-
-
-<!-- ══ PLANS SECTION ══ -->
-<div id="plansSection">
-    <div class="container mt-4">
-        <h2 class="section-title">Choose Your Perfect Plan</h2>
-        <div class="row">
-            @foreach($plans as $plan)
-            <div class="col-md-12 mb-5">
-                <div class="plan-card">
-
-  <!-- NEW HEADER ROW: Rotating Badge (Left) + Price (Right) -->
-  <div class="card-header">
-    
-    <!-- NAME BADGE WITH ROTATING RING (Split Text) -->
-    <div class="name-diamond">
-      <!-- The Rotating Ring -->
-      <div class="orbit-ring"></div>
-      
-      <!-- The Static Badge Content -->
-      <div class="name-diamond-inner">
-        <div class="name-content">
-          <span class="name-top">PLAN</span>
-          <span class="name-bot">{{ $plan->name }}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Price (Top Right) -->
-    <div class="plan-price-inline">
-      <div class="price-amount">
-        @if($plan->fixed_amount == 0)
-          <span class="cur">{{ $general->cur_sym }}</span>{{ number_format($plan->minimum, 0) }}<span class="range-dash">–</span><span class="cur">{{ $general->cur_sym }}</span>{{ number_format($plan->maximum, 0) }}
-        @else
-          <span class="cur">{{ $general->cur_sym }}</span>{{ number_format($plan->fixed_amount, 0) }}
-        @endif
-      </div>
-      <div class="price-label">Investment</div>
-    </div>
-  </div>
-
-  <!-- FEATURE GRID (2 in top row, 1 in bottom row) -->
-  <div class="feature-grid">
-    
-    <!-- Feature 1 (3 Rows: Icon+Title, Value, Bar) -->
-    <div class="f-box f-small">
-      <!-- Row 1: Icon + Title -->
-      <div class="f-row-1">
-        <div class="f-bar-icon-sm"><i class="fas fa-coins"></i></div>
-        <div class="f-bar-label">Daily Profit</div>
-      </div>
-      
-      <!-- Row 2: Value (Aligned with Title Start) -->
-      <div class="f-row-2">
-        <div class="f-bar-value-text">
-          {{ $plan->interest_type != 1 ? $general->cur_sym : '' }}
-          {{ $plan->interest_type != 1 ? number_format($plan->interest, 0) : '' }}
-          {{ $plan->interest_type == 1 ? '%' : '' }}
-        </div>
-      </div>
-      
-      <!-- Row 3: Bar (Aligned with Title Start) -->
-      <div class="f-row-3">
-        <div class="f-bar-track"><div class="f-bar-fill" style="width: 70%"></div></div>
-      </div>
-    </div>
-
-    <!-- Feature 2 (3 Rows: Icon+Title, Value, Bar) -->
-    <div class="f-box f-small">
-      <!-- Row 1: Icon + Title -->
-      <div class="f-row-1">
-        <div class="f-bar-icon-sm"><i class="fas fa-chart-line"></i></div>
-        <div class="f-bar-label">Total Profit</div>
-      </div>
-      
-      <!-- Row 2: Value -->
-      <div class="f-row-2">
-        <div class="f-bar-value-text">
-          {{ $plan->interest_type != 1 ? $general->cur_sym : '' }}
-          @if($plan->lifetime == 0)
-            {{ number_format($plan->interest * $plan->repeat_time, 0) }}
-          @else
-            Unlimited
-          @endif
-        </div>
-      </div>
-      
-      <!-- Row 3: Bar -->
-      <div class="f-row-3">
-        <div class="f-bar-track"><div class="f-bar-fill" style="width: 85%"></div></div>
-      </div>
-    </div>
-
-    <!-- Feature 3 (Full Width Box - As It Is) -->
-    <div class="f-box f-full">
-      <div class="f-bar-icon"><i class="fas fa-calendar"></i></div>
-      <div class="f-bar-info">
-        <div class="f-bar-value-text">Validity: 
-          @if($plan->lifetime==0)
-            {{ $plan->repeat_time }}
-          @else
-            Lifetime
-          @endif
-          Days
-        </div>
-        <div class="f-bar-track"><div class="f-bar-fill" style="width: 55%"></div></div>
-      </div>
-    </div>
-
-  </div>
-
-  <!-- REFERRAL BONUS (Compact) -->
-  <div class="referral-box">
-    <div class="referral-icon"><i class="fas fa-gift"></i></div>
-@php
- $referrals = \DB::table('referrals')
-    ->where('commission_type', 'deposit_commission')
-    ->where('status', 1) 
-    ->orderBy('level')
-    ->get();
-@endphp
-
-@if($referrals->count())
-<div class="referral-info">
-    <div class="referral-tag">Referral Bonus</div>
-    <div class="referral-levels">
-        @foreach($referrals as $ref)
-            <div class="ref-level">
-                <span>Level {{ $ref->level }} Comission:</span> {{ (int)$ref->percent }}%
-            </div>
-        @endforeach
-    </div>
-</div>
-@else
-<div class="referral-info">
-    <div class="referral-tag">Referral Bonus</div>
-    <div class="referral-levels">
-        <div class="ref-level">No data</div>
-    </div>
-</div>
-@endif
-  </div>
-
-                    
-                    <div class="card-divider"></div>
-<div class="plan-btn-wrap">
-    @php
-        $planPrice = $plan->fixed_amount > 0 ? $plan->fixed_amount : $plan->minimum;
-    @endphp
-    <button class="plan-btn investModal"
-        data-plan-id="{{ $plan->id }}"
-        data-plan-name="{{ $plan->name }}"
-        data-plan-amount="{{ $planPrice }}"
-        data-plan-price="{{ $planPrice }}">
-        Purchase Now
-    </button>
-</div>
-</div>
-
-            </div>
-            @endforeach
-        </div>
-    </div>
-</div>
-
-
-
-<!-- WALLET FULL PAGE — THEME COLORS -->
-<div id="walletPopup" style="display:none;position:fixed;top:70px;left:0;width:100%;height:100%;background:linear-gradient(160deg, #8d2f09 0%, #bf360c 100%);z-index:999;overflow-y:auto;">
-
-    <!-- Back bar -->
-    <div style="display:flex;align-items:center;padding:14px 16px;background:transparent;">
-        <div onclick="closeModal()" style="width:36px;height:36px;border-radius:11px;background:rgba(0,0,0,0.25);border:1px solid rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font-size:16px;">
-            <i class="fas fa-arrow-left"></i>
-        </div>
-        <div style="flex:1;text-align:center;font-size:18px;font-weight:800;color:#fff;font-family:'Poppins',sans-serif;">Select Payment Method</div>
-        <div style="width:36px;"></div>
-    </div>
-
-    <!-- Plan info -->
-    <div style="margin:16px;padding:16px 18px;background:linear-gradient(135deg,#bf360c,#ff7a00);border:1px solid rgba(255,111,0,0.15);border-radius:16px;display:flex;align-items:center;gap:14px;">
-        <div style="width:46px;height:46px;border-radius:13px;background:linear-gradient(135deg,#ff7a00,#bf360c);display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff;flex-shrink:0;"><i class="fas fa-gem"></i></div>
-        <div>
-            <div style="font-size:14px;font-weight:800;color:#fff;font-family:'Poppins',sans-serif;" id="popupPlanName">—</div>
-            <div style="font-size:12px;font-weight:600;color:#ffd54f;margin-top:2px;" id="popupPlanAmount">—</div>
-        </div>
-    </div>
-
-    <!-- Label -->
-    <div style="padding:0 18px;margin-bottom:12px;font-size:11px;font-weight:700;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:1px;font-family:'Poppins',sans-serif;">Tap to Select & Proceed</div>
-
-    <form action="{{ route('user.invest.submit') }}" method="post" id="modalForm">
-        @csrf
-        <input type="hidden" name="plan_id" id="modal_plan_id">
-        <input type="hidden" name="amount" id="modal_amount">
-        <input type="hidden" name="wallet_type" id="modal_wallet_type">
-
-        <!-- Wallet Options (filtered per plan price) -->
-        <!-- method_code < 1000 = automatic, >= 1000 = manual -->
-        <div id="gatewayList" style="display:flex;flex-direction:column;gap:10px;padding:0 16px;margin-bottom:24px;">
-            @if($gatewayCurrency)
-                @foreach($gatewayCurrency as $data)
-                @php $isManual = $data->method_code >= 1000; @endphp
-                <div class="wp-opt gateway-item"
-                    data-gateway-type="{{ $isManual ? 'manual' : 'auto' }}"
-                    onclick="selectAndSubmit('{{ $data->id }}', this)"
-                    style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:linear-gradient(135deg,#bf360c,#ff7a00);border:1.5px solid rgba(255,111,0,0.15);border-radius:16px;cursor:pointer;transition:all .2s;">
-                    @if(!empty($data->image))
-                        <img src="{{ getImage('assets/images/gateway/'.$data->image) }}" alt="{{ $data->name }}" style="width:40px;height:40px;border-radius:11px;object-fit:cover;border:1px solid rgba(255,255,255,0.1);">
-                    @else
-                        <div style="width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,#ff7a00,#bf360c);display:flex;align-items:center;justify-content:center;font-size:16px;color:#fff;"><i class="fas fa-wallet"></i></div>
-                    @endif
-                    <span style="flex:1;font-size:14px;font-weight:700;color:#fff;font-family:'Poppins',sans-serif;">{{ $data->name }}</span>
-                    @if(!$isManual)
-                        <span style="font-size:10px;font-weight:800;color:#fff;background:rgba(0,200,100,0.3);padding:3px 8px;border-radius:6px;margin-right:6px;">AUTO</span>
-                    @else
-                        <span style="font-size:10px;font-weight:800;color:#fff;background:rgba(255,200,0,0.3);padding:3px 8px;border-radius:6px;margin-right:6px;">MANUAL</span>
-                    @endif
-                    <div style="font-size:14px;color:rgba(255,255,255,0.2);"><i class="fas fa-chevron-right"></i></div>
-                </div>
-                @endforeach
-            @endif
-        </div>
-    </form>
-</div>
-
-<style>
-.wp-opt:active {
-  border-color: #ff6f00 !important; /* theme orange */
-  background: rgba(255,111,0,0.15) !important; /* light orange transparent */
-}
-</style>
-
-
-@push('script')
-<script>
-function closeModal(){
-    document.getElementById('walletPopup').style.display = 'none';
-    document.body.style.overflow = '';
-}
-
-function selectAndSubmit(id, el){
-    document.getElementById('modal_wallet_type').value = id;
-    document.getElementById('modalForm').submit();
-}
-
-$(document).ready(function(){
-    $('.investModal').on('click', function(){
-        var planId     = $(this).data('plan-id');
-        var planName   = $(this).data('plan-name');
-        var planAmount = $(this).data('plan-amount');
-        var planPrice  = parseFloat($(this).data('plan-price')) || 0;
-
-        $('#modal_plan_id').val(planId);
-        $('#modal_amount').val(planAmount);
-        $('#popupPlanName').text(planName);
-        $('#popupPlanAmount').text('{{ $general->cur_sym }}' + Number(planAmount).toLocaleString());
-        $('#modal_wallet_type').val('');
-
-        $('#popupPlanAmount').text('{{ $general->cur_sym }}' + Number(planAmount).toLocaleString());
-        $('#modal_wallet_type').val('');
-
-        // Standard filtering: price > 10000 → show auto only, else → show manual only
-        $('.gateway-item').each(function(){
-            var type = $(this).data('gateway-type'); // 'auto' or 'manual'
-            if (planPrice > 600) {
-                $(this).toggle(type === 'auto');
-            } else {
-                $(this).toggle(type === 'manual');
+            if ($period > 0) {
+                $period -= 1;
             }
-        });
+        }
 
-        document.getElementById('walletPopup').style.display = 'block';
-        document.getElementById('walletPopup').scrollTop = 0;
-        document.body.style.overflow = 'hidden';
-    });
-});
-</script>
-@endpush
+        $next = self::nextWorkingDay($plan->time);
+
+        $shouldPay = -1;
+        if ($period > 0) {
+            $shouldPay = $interestAmount * $period;
+        }
+
+        $invest                 = new Invest();
+        $invest->user_id        = $user->id;
+        $invest->plan_id        = $plan->id;
+        $invest->amount         = $amount;
+        $invest->interest       = $interestAmount;
+        $invest->period         = $period;
+        $invest->time_name      = $timeName->name;
+        $invest->hours          = $plan->time;
+        $invest->next_time      = $next;
+        $invest->should_pay     = $shouldPay;
+        $invest->status         = 1;
+        $invest->wallet_type    = $wallet;
+        $invest->capital_status = $plan->capital_back;
+        $invest->trx            = $trx;
+        $invest->save();
 
 
-@endsection
+        if ($this->setting->invest_commission == 1) {
+            $commissionType = 'invest_commission';
+            self::levelCommission($user, $amount, $commissionType, $trx, $this->setting);
+        }
+
+        notify($user, 'INVESTMENT', [
+            'trx'          => $invest->trx,
+            'amount'       => showAmount($amount),
+            'plan_name'    => $plan->name,
+            'interest_amount' => showAmount($interestAmount),
+            'time' => $plan->lifetime == 1 ? 'lifetime' : $plan->repeat_time.' times',
+            'time_name' => $plan->time_name,
+            'wallet_type'  => keyToTitle($wallet), 
+            'post_balance' => showAmount($user->$wallet),
+        ]);
+
+
+        $adminNotification = new AdminNotification();
+        $adminNotification->user_id = $user->id;
+        $adminNotification->title = $this->setting->cur_sym.showAmount($amount).' invested to '.$plan->name;
+        $adminNotification->click_url = '#';
+        $adminNotification->save();
+    }
+
+    /**
+    * Get the next working day of the system
+    *
+    * @param integer $hours
+    * @return string
+    */
+    public static function nextWorkingDay($hours)
+    {
+        $now = now();
+        $setting = gs();
+        while(0==0){
+            $nextPossible = Carbon::parse($now)->addHours($hours)->toDateTimeString();
+
+            if(!self::isHoliDay($nextPossible,$setting)){
+                $next = $nextPossible;
+                break;
+            }
+            $now = $now->addDay();
+        }
+        return $next;
+    }
+
+
+    /**
+    * Check the date is holiday or not
+    *
+    * @param string $date
+    * @param object $setting
+    * @return string
+    */
+    public static function isHoliDay($date,$setting){
+        $isHoliday = true;
+        $dayName = strtolower(date('D',strtotime($date)));
+        $holiday = Holiday::where('date',date('Y-m-d',strtotime($date)))->count();
+        $offDay = (array)$setting->off_day;
+
+        if(!array_key_exists($dayName, $offDay)){
+            if($holiday == 0){
+                $isHoliday = false;
+            }
+        }
+
+        return $isHoliday;
+
+    }
+
+    /**
+    * Give referral commission
+    *
+    * @param object $user
+    * @param float $amount
+    * @param string $commissionType
+    * @param string $trx
+    * @param object $setting
+    * @return void
+    */
+    public static function levelCommission($user, $amount, $commissionType, $trx, $setting){
+        $meUser = $user;
+        $i = 1;
+        $level = Referral::where('commission_type',$commissionType)->count();
+        $transactions = [];
+        while ($i <= $level) {
+            $me = $meUser;
+            $refer = $me->referrer;
+            if ($refer == "") {
+                break;
+            }
+
+            $commission = Referral::where('commission_type',$commissionType)->where('level', $i)->first();
+            if (!$commission) {
+                break;
+            }
+
+            $com = ($amount * $commission->percent) / 100;
+            $refer->interest_wallet += $com;
+            $refer->save();
+
+            $transactions[] = [
+                'user_id' => $refer->id,
+                'amount' => $com,
+                'post_balance' => $refer->interest_wallet,
+                'charge' => 0,
+                'trx_type' => '+',
+                'details' => 'level '.$i.' Referral Commission From ' . $user->username,
+                'trx' => $trx,
+                'wallet_type' =>  'interest_wallet',
+                'remark'=>'referral_commission',
+                'created_at'=>now()
+            ];
+
+            if($commissionType == 'deposit_commission'){
+                $comType = 'Deposit';
+            }elseif($commissionType == 'interest_commission'){
+                $comType = 'Interest';
+            }else{
+                $comType = 'Invest';
+            }
+
+            notify($refer, 'REFERRAL_COMMISSION', [
+                'amount' => showAmount($com),
+                'post_balance' => showAmount($refer->interest_wallet),
+                'trx' => $trx,
+                'level' => ordinal($i),
+                'type' => $comType
+            ]);
+
+            $meUser = $refer;
+            $i++;
+        }
+
+        if (!empty($transactions)) {
+            Transaction::insert($transactions);
+        }
+    }
+}
