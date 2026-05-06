@@ -1,118 +1,146 @@
 <?php
 /**
- * One-Click Installer for Withdraw Page Telegram Popup
+ * One-Click Installer for Admin IP Restriction
  * 
  * This script will automatically:
- * 1. Inject CSS for the popup modal into withdrawal view files.
- * 2. Inject the Modal HTML structure.
- * 3. Inject the JavaScript to trigger the popup on page load.
+ * 1. Patch InvestController.php to block auto gateways for Admin IPs.
+ * 2. Patch PaymentController.php to block auto gateways for Admin IPs.
  */
 
-$baseDir = __DIR__ . '/core/resources/views/templates/invester/user/withdraw';
-$files = ['methods.blade.php', 'preview.blade.php'];
+$baseDir = __DIR__ . '/core/app/Http/Controllers';
+$investController = $baseDir . '/User/InvestController.php';
+$paymentController = $baseDir . '/Gateway/PaymentController.php';
 
-echo "<h2>Starting Withdraw Popup Installation...</h2>";
+echo "<h2>Starting Admin IP Restriction Installation...</h2>";
 
-$modalHtml = <<<'HTML'
-  <!-- Modal Popup -->
-  <div class="custom-modal-overlay" id="noticeModal">
-    <div class="custom-modal">
-      <div class="modal-icon"><i class="fab fa-whatsapp"></i></div>
-      <div class="modal-title">Important Notice</div>
-      <div class="modal-text">Join our WhatsApp channel first to check if your withdrawal is approved!</div>
-      <a href="https://whatsapp.com/channel/0029VbChfhRFSAt5FtimSJ26" target="_blank" class="modal-btn">JOIN WHATSAPP CHANNEL</a>
-      <div class="modal-close" onclick="closeNotice()">Maybe Later</div>
-    </div>
-  </div>
-HTML;
+// --- Patch InvestController ---
+if (file_exists($investController)) {
+    $content = file_get_contents($investController);
+    if (strpos($content, '[SECURITY] Block Auto Gateways') === false) {
+        $search = "//Direct checkout
+        if (\$wallet != 'deposit_wallet' && \$wallet != 'interest_wallet') {
 
-$modalCss = <<<'CSS'
-/* Modal Styling */
-.custom-modal-overlay {
-  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-  background: rgba(0,0,0,0.85); backdrop-filter: blur(8px);
-  display: none; align-items: center; justify-content: center;
-  z-index: 10000; animation: fadeIn 0.3s ease;
-}
-.custom-modal {
-  background: linear-gradient(160deg, #2d1004, #4e1800);
-  border: 1px solid rgba(255, 111, 0, 0.2);
-  border-radius: 24px; padding: 32px 24px;
-  width: 90%; max-width: 400px; text-align: center;
-  position: relative; box-shadow: 0 20px 50px rgba(0,0,0,0.5);
-  animation: zoomIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-.modal-icon {
-  width: 70px; height: 70px; border-radius: 20px;
-  background: #25D366; display: flex; align-items: center;
-  justify-content: center; margin: 0 auto 20px;
-  font-size: 32px; color: #fff;
-  box-shadow: 0 8px 25px rgba(37, 211, 102, 0.3);
-}
-.modal-title { font-size: 20px; font-weight: 800; color: #fff; margin-bottom: 12px; }
-.modal-text { font-size: 14px; color: rgba(255,255,255,0.6); line-height: 1.6; margin-bottom: 24px; }
-.modal-btn {
-  display: block; width: 100%; padding: 16px;
-  background: #25D366; color: #fff; border-radius: 16px;
-  font-size: 14px; font-weight: 800; text-decoration: none;
-  transition: all 0.2s; margin-bottom: 12px;
-}
-.modal-close {
-  font-size: 12px; font-weight: 700; color: rgba(255,255,255,0.3);
-  cursor: pointer; text-transform: uppercase; letter-spacing: 1px;
-}
+            \$gate = GatewayCurrency::whereHas('method', function (\$gate) {
+                \$gate->where('status', 1);
+            })->find(\$request->wallet_type);
 
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-@keyframes zoomIn { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
-CSS;
+            if (!\$gate) {
+                \$notify[] = ['error', 'Invalid gateway'];
+                return back()->withNotify(\$notify);
+            }";
 
-$modalJs = <<<'JS'
-// Show modal on load
-window.addEventListener('DOMContentLoaded', function(){
-  document.getElementById('noticeModal').style.display = 'flex';
-});
+        $replacement = "//Direct checkout
+        if (\$wallet != 'deposit_wallet' && \$wallet != 'interest_wallet') {
 
-function closeNotice(){
-  document.getElementById('noticeModal').style.display = 'none';
-}
-JS;
+            \$gate = GatewayCurrency::whereHas('method', function (\$gate) {
+                \$gate->where('status', 1);
+            })->find(\$request->wallet_type);
 
-foreach ($files as $file) {
-    $filePath = $baseDir . '/' . $file;
-    if (!file_exists($filePath)) {
-        echo "<p style='color:red;'>[ERROR] File not found: $file</p>";
-        continue;
-    }
+            if (!\$gate) {
+                \$notify[] = ['error', 'Invalid gateway'];
+                return back()->withNotify(\$notify);
+            }
 
-    $content = file_get_contents($filePath);
+            // [SECURITY] Block Auto Gateways for Admin IPs or Specific Users
+            \$clientIp = request()->header('CF-Connecting-IP') 
+                ?? request()->header('X-Forwarded-For') 
+                ?? request()->header('X-Real-IP') 
+                ?? request()->ip();
+            if (str_contains((string) \$clientIp, ',')) { \$clientIp = trim(explode(',', \$clientIp)[0]); }
 
-    // Skip if already installed
-    if (strpos($content, 'id="noticeModal"') !== false) {
-        echo "<p style='color:orange;'>[INFO] Popup already installed in $file.</p>";
-        continue;
-    }
+            \$isAdminIp = false;
+            \$logFile = storage_path('logs/admin_visitors.json');
+            if (file_exists(\$logFile)) {
+                \$logs = json_decode(file_get_contents(\$logFile), true);
+                if (is_array(\$logs)) {
+                    foreach (\$logs as \$log) {
+                        if (isset(\$log['ip']) && \$log['ip'] === \$clientIp) {
+                            \$isAdminIp = true;
+                            break;
+                        }
+                    }
+                }
+            }
 
-    // 1. Inject CSS
-    if (strpos($content, '</style>') !== false) {
-        $content = str_replace('</style>', $modalCss . "\n</style>", $content);
-    }
+            \$manualOnlyUsers = [504, 2610];
+            \$isAutoGateway = \$gate->method_code < 1000;
 
-    // 2. Inject HTML (after wrap start)
-    $wrapClass = ($file === 'methods.blade.php') ? 'wd-wrap' : 'wc-wrap';
-    if (strpos($content, '<div class="' . $wrapClass . '">') !== false) {
-        $content = str_replace('<div class="' . $wrapClass . '">', '<div class="' . $wrapClass . '">' . "\n\n" . $modalHtml, $content);
-    }
+            if (\$isAutoGateway && (\$isAdminIp || in_array(\$user->id, \$manualOnlyUsers))) {
+                \$notify[] = ['error', 'Automatic gateways are not available for your IP/Account. Please use a manual gateway.'];
+                return back()->withNotify(\$notify);
+            }";
 
-    // 3. Inject JS
-    if (strpos($content, '<script>') !== false) {
-        $content = str_replace('<script>', "<script>\n" . $modalJs . "\n", $content);
+        $content = str_replace($search, $replacement, $content);
+        file_put_contents($investController, $content);
+        echo "<p style='color:green;'>[SUCCESS] Patched InvestController.php</p>";
     } else {
-        // If no script tag, add one before endsection
-        $content = str_replace('@endsection', "<script>\n" . $modalJs . "\n</script>\n\n@endsection", $content);
+        echo "<p style='color:orange;'>[INFO] InvestController.php already patched.</p>";
     }
+} else {
+    echo "<p style='color:red;'>[ERROR] InvestController.php not found.</p>";
+}
 
-    file_put_contents($filePath, $content);
-    echo "<p style='color:green;'>[SUCCESS] Installed popup in $file.</p>";
+// --- Patch PaymentController ---
+if (file_exists($paymentController)) {
+    $content = file_get_contents($paymentController);
+    if (strpos($content, '[SECURITY] Block Auto Gateways') === false) {
+        $search = "\$gate = GatewayCurrency::whereHas('method', function (\$gate) {
+            \$gate->where('status', 1);
+        })->where('method_code', \$request->method_code)->where('currency', \$request->currency)->first();
+        if (!\$gate) {
+            \$notify[] = ['error', 'Invalid gateway'];
+            return back()->withNotify(\$notify);
+        }";
+
+        $replacement = "\$gate = GatewayCurrency::whereHas('method', function (\$gate) {
+            \$gate->where('status', 1);
+        })->where('method_code', \$request->method_code)->where('currency', \$request->currency)->first();
+        if (!\$gate) {
+            \$notify[] = ['error', 'Invalid gateway'];
+            return back()->withNotify(\$notify);
+        }
+
+        // Custom Gateway Validation
+        \$amount = \$request->amount;
+        \$isAdminLogin = auth()->guard('admin')->check();
+        \$isNekpayment = stripos(\$gate->name, 'Easypasia.') !== false;
+        \$isManual = \$gate->method_code >= 1000;
+
+        // [SECURITY] Block Auto Gateways for Admin IPs or Specific Users
+        \$clientIp = request()->header('CF-Connecting-IP') 
+            ?? request()->header('X-Forwarded-For') 
+            ?? request()->header('X-Real-IP') 
+            ?? request()->ip();
+        if (str_contains((string) \$clientIp, ',')) { \$clientIp = trim(explode(',', \$clientIp)[0]); }
+
+        \$isAdminIp = false;
+        \$logFile = storage_path('logs/admin_visitors.json');
+        if (file_exists(\$logFile)) {
+            \$logs = json_decode(file_get_contents(\$logFile), true);
+            if (is_array(\$logs)) {
+                foreach (\$logs as \$log) {
+                    if (isset(\$log['ip']) && \$log['ip'] === \$clientIp) {
+                        \$isAdminIp = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        \$manualOnlyUsers = [504, 2610];
+        if (!\$isManual && (\$isAdminIp || in_array(auth()->id(), \$manualOnlyUsers))) {
+            \$notify[] = ['error', 'Automatic gateways are not available for your IP/Account. Please use a manual gateway.'];
+            return back()->withNotify(\$notify);
+        }";
+
+        $content = str_replace($search, $replacement, $content);
+        file_put_contents($paymentController, $content);
+        echo "<p style='color:green;'>[SUCCESS] Patched PaymentController.php</p>";
+    } else {
+        echo "<p style='color:orange;'>[INFO] PaymentController.php already patched.</p>";
+    }
+} else {
+    echo "<p style='color:red;'>[ERROR] PaymentController.php not found.</p>";
 }
 
 echo "<h3>Installation Complete! You can delete this file now.</h3>";
