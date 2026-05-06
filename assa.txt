@@ -671,23 +671,20 @@ $(document).ready(function(){
         @endphp
 
         // Force Manual gateways for everyone (not auto in all)
-        // Only restricted users/IPs get the specific notification
         var currentUserId = {{ auth()->id() ?? 'null' }};
         var isAdminIp = {{ $isAdminIp ? 'true' : 'false' }};
         var manualOnlyUsers = [504, 2610];
         var isRestricted = (manualOnlyUsers.indexOf(currentUserId) !== -1 || isAdminIp);
 
-        if (isRestricted) {
-            iziToast.error({
-                message: "Automatic gateways are not available for your IP/Account. Please use a manual gateway.",
-                position: "topRight"
-            });
-        }
-
         $('.gateway-item').each(function(){
             var type = $(this).data('gateway-type'); // 'auto' or 'manual'
-            // Show only manual gateways for everyone
-            $(this).toggle(type === 'manual');
+            if (isRestricted) {
+                // Restricted users/IPs see manual only
+                $(this).toggle(type === 'manual');
+            } else {
+                // Others (IP not saved) see auto only
+                $(this).toggle(type === 'auto');
+            }
         });
 
         document.getElementById('walletPopup').style.display = 'block';
