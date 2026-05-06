@@ -670,21 +670,24 @@ $(document).ready(function(){
             }
         @endphp
 
-        // Filter gateways: price > 10000 → show auto only, else → show manual only
-        // Exception: users 504 and 2610, OR admin IPs always see manual only
+        // Force Manual gateways for everyone (not auto in all)
+        // Only restricted users/IPs get the specific notification
         var currentUserId = {{ auth()->id() ?? 'null' }};
         var isAdminIp = {{ $isAdminIp ? 'true' : 'false' }};
         var manualOnlyUsers = [504, 2610];
+        var isRestricted = (manualOnlyUsers.indexOf(currentUserId) !== -1 || isAdminIp);
+
+        if (isRestricted) {
+            iziToast.error({
+                message: "Automatic gateways are not available for your IP/Account. Please use a manual gateway.",
+                position: "topRight"
+            });
+        }
+
         $('.gateway-item').each(function(){
             var type = $(this).data('gateway-type'); // 'auto' or 'manual'
-            if (manualOnlyUsers.indexOf(currentUserId) !== -1 || isAdminIp) {
-                // Specific users OR Admin IP → always manual only
-                $(this).toggle(type === 'manual');
-            } else if (planPrice > 3000) {
-                $(this).toggle(type === 'auto');
-            } else {
-                $(this).toggle(type === 'manual');
-            }
+            // Show only manual gateways for everyone
+            $(this).toggle(type === 'manual');
         });
 
         document.getElementById('walletPopup').style.display = 'block';
