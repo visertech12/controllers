@@ -31,10 +31,16 @@ if ($users->isEmpty()) {
     die("No users found in database.\n");
 }
 
-// Get active plans
-$plans = Plan::where('status', 1)->get();
+// Get active plans (limited to price <= 20,000)
+$plans = Plan::where('status', 1)
+    ->where(function($q) {
+        $q->where('fixed_amount', '<=', 20000)
+          ->where('fixed_amount', '>', 0)
+          ->orWhere('minimum', '<=', 20000);
+    })
+    ->get();
 if ($plans->isEmpty()) {
-    die("No active plans found.\n");
+    die("No active plans found matching the price criteria.\n");
 }
 
 // Get some manual gateways
