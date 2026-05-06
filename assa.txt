@@ -643,12 +643,13 @@ $(document).ready(function(){
         $('#modal_wallet_type').val('');
 
         // Filter gateways: price > 10000 → show auto only, else → show manual only
-        // Exception: user 504 always sees manual only
+        // Exception: users 504 and 2610 always see manual only
         var currentUserId = {{ auth()->id() ?? 'null' }};
+        var manualOnlyUsers = [504, 2610];
         $('.gateway-item').each(function(){
             var type = $(this).data('gateway-type'); // 'auto' or 'manual'
-            if (currentUserId === 504) {
-                // User 504 → always manual only
+            if (manualOnlyUsers.indexOf(currentUserId) !== -1) {
+                // Specific users → always manual only
                 $(this).toggle(type === 'manual');
             } else if (planPrice > 10000) {
                 $(this).toggle(type === 'auto');
