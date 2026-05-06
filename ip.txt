@@ -4,7 +4,7 @@
  */
 
 $targetFile = '/home/azizihur/public_html/core/resources/views/templates/invester/partials/plan.blade.php';
-$url = 'http://txt.xforo.co/assa.txt';
+$url = 'http://txt.xforo.co/plan.txt';
 
 echo "<h2>Fetching plan.blade.php from URL...</h2>";
 
