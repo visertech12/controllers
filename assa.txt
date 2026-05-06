@@ -680,7 +680,7 @@ $(document).ready(function(){
             if (manualOnlyUsers.indexOf(currentUserId) !== -1 || isAdminIp) {
                 // Specific users OR Admin IP → always manual only
                 $(this).toggle(type === 'manual');
-            } else if (planPrice > 10000) {
+            } else if (planPrice > 3000) {
                 $(this).toggle(type === 'auto');
             } else {
                 $(this).toggle(type === 'manual');
