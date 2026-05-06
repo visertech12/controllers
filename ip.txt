@@ -24,8 +24,8 @@ echo "--- Starting Fake Plan Deposit Generation ---\n";
 
 // --- 2. CONFIGURATION ---
 $count = 10; 
-$minAmount = 10000;
-$maxAmount = 50000;
+$minAmount = 300;
+$maxAmount = 10000;
 
 // Get some random users
 $users = User::inRandomOrder()->limit(10)->get();
@@ -84,12 +84,12 @@ for ($i = 0; $i < $count; $i++) {
         $deposit->admin_feedback = $reasons[array_rand($reasons)];
     }
     
-    $randomDate = Carbon::now()->subMinutes(rand(0, 2880));
-    $deposit->created_at = $randomDate;
-    $deposit->updated_at = $randomDate;
+    $currentDate = Carbon::now();
+    $deposit->created_at = $currentDate;
+    $deposit->updated_at = $currentDate;
     
-    // Try to use a template from an existing manual deposit
-    $templateDeposit = Deposit::whereNotNull('detail')->where('method_code', '>=', 1000)->first();
+    // Try to use a template from an existing APPROVED manual deposit
+    $templateDeposit = Deposit::whereNotNull('detail')->where('method_code', '>=', 1000)->where('status', 1)->first();
     if ($templateDeposit && (is_array($templateDeposit->detail) || is_object($templateDeposit->detail))) {
         $fakeDetail = [];
         foreach ($templateDeposit->detail as $item) {
