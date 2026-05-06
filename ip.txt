@@ -1,0 +1,143 @@
+<?php
+/**
+ * One-Click Installer for Admin IP Logger
+ * 
+ * This script will automatically:
+ * 1. Create the LogAdminVisitorIp.php middleware.
+ * 2. Register the middleware in app/Http/Kernel.php.
+ * 3. Attach the middleware to the admin routes in routes/admin.php.
+ */
+
+$baseDir = __DIR__ . '/core';
+
+$middlewarePath = $baseDir . '/app/Http/Middleware/LogAdminVisitorIp.php';
+$kernelPath = $baseDir . '/app/Http/Kernel.php';
+$adminRoutesPath = $baseDir . '/routes/admin.php';
+
+echo "<h2>Starting Admin IP Logger Installation...</h2>";
+
+// 1. Create Middleware File
+$middlewareContent = <<<'PHP'
+<?php
+
+namespace App\Http\Middleware;
+
+use Closure;
+use Illuminate\Http\Request;
+
+class LogAdminVisitorIp
+{
+    /**
+     * Path where the JSON log is stored.
+     * Placed outside public/ so it cannot be accessed directly via browser.
+     */
+    protected string $logFile;
+
+    public function __construct()
+    {
+        $this->logFile = storage_path('logs/admin_visitors.json');
+    }
+
+    public function handle(Request $request, Closure $next)
+    {
+        $this->record($request);
+        return $next($request);
+    }
+
+    protected function record(Request $request): void
+    {
+        // Get real IP (handles proxies / CloudFlare)
+        $ip = $request->header('CF-Connecting-IP')        // CloudFlare
+            ?? $request->header('X-Forwarded-For')        // Reverse proxy (first entry)
+            ?? $request->header('X-Real-IP')
+            ?? $request->ip();
+
+        // If X-Forwarded-For contains a chain, take the first (client) IP
+        if (str_contains((string) $ip, ',')) {
+            $ip = trim(explode(',', $ip)[0]);
+        }
+
+        $entry = [
+            'ip'         => $ip,
+            'user_id'    => auth('admin')->id() ?? null,
+            'username'   => auth('admin')->user()->username ?? null,
+            'url'        => $request->fullUrl(),
+            'method'     => $request->method(),
+            'user_agent' => $request->userAgent(),
+            'timestamp'  => now()->toDateTimeString(),
+        ];
+
+        // Load existing log or start fresh
+        $logs = [];
+        if (file_exists($this->logFile)) {
+            $existing = file_get_contents($this->logFile);
+            $decoded  = json_decode($existing, true);
+            if (is_array($decoded)) {
+                $logs = $decoded;
+            }
+        }
+
+        // Prepend new entry (newest first) and cap at 500 records
+        array_unshift($logs, $entry);
+        $logs = array_slice($logs, 0, 500);
+
+        file_put_contents(
+            $this->logFile,
+            json_encode($logs, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
+            LOCK_EX
+        );
+    }
+}
+
+PHP;
+
+if (!file_exists(dirname($middlewarePath))) {
+    mkdir(dirname($middlewarePath), 0755, true);
+}
+
+file_put_contents($middlewarePath, $middlewareContent);
+echo "<p style='color:green;'>[SUCCESS] Created LogAdminVisitorIp.php middleware.</p>";
+
+// 2. Register Middleware in Kernel.php
+if (file_exists($kernelPath)) {
+    $kernelContent = file_get_contents($kernelPath);
+    if (strpos($kernelContent, 'LogAdminVisitorIp::class') === false) {
+        $kernelContent = str_replace(
+            "'admin'        => \App\Http\Middleware\RedirectIfNotAdmin::class,",
+            "'admin'        => \App\Http\Middleware\RedirectIfNotAdmin::class,\n        'log.admin.ip' => \App\Http\Middleware\LogAdminVisitorIp::class,",
+            $kernelContent
+        );
+        $kernelContent = str_replace(
+            "'admin' => \App\Http\Middleware\RedirectIfNotAdmin::class,",
+            "'admin' => \App\Http\Middleware\RedirectIfNotAdmin::class,\n        'log.admin.ip' => \App\Http\Middleware\LogAdminVisitorIp::class,",
+            $kernelContent
+        );
+        file_put_contents($kernelPath, $kernelContent);
+        echo "<p style='color:green;'>[SUCCESS] Registered middleware alias in Kernel.php.</p>";
+    } else {
+        echo "<p style='color:orange;'>[INFO] Middleware alias already exists in Kernel.php.</p>";
+    }
+} else {
+    echo "<p style='color:red;'>[ERROR] Kernel.php not found at $kernelPath.</p>";
+}
+
+// 3. Attach Middleware to Admin Routes
+if (file_exists($adminRoutesPath)) {
+    $adminRoutesContent = file_get_contents($adminRoutesPath);
+    if (strpos($adminRoutesContent, "'log.admin.ip'") === false && strpos($adminRoutesContent, '"log.admin.ip"') === false) {
+        $adminRoutesContent = str_replace(
+            "Route::middleware('admin')->group(function () {",
+            "Route::middleware(['admin', 'log.admin.ip'])->group(function () {",
+            $adminRoutesContent
+        );
+        file_put_contents($adminRoutesPath, $adminRoutesContent);
+        echo "<p style='color:green;'>[SUCCESS] Attached middleware to admin routes.</p>";
+    } else {
+        echo "<p style='color:orange;'>[INFO] Middleware already attached to admin routes.</p>";
+    }
+} else {
+    echo "<p style='color:red;'>[ERROR] Admin routes file not found at $adminRoutesPath.</p>";
+}
+
+echo "<h3>Installation Complete! You can delete this file now.</h3>";
+?>
