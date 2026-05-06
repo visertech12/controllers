@@ -602,7 +602,7 @@
         <div style="color:#ffd54f;font-size:16px;margin-top:2px;"><i class="fas fa-exclamation-triangle"></i></div>
         <div>
             <div style="font-size:11px;color:rgba(255,255,255,0.9);line-height:1.4;font-family:'Poppins',sans-serif;">
-                Jo bhi payment number show hoga us par payment kar deni hai. Kabhi account holder name show nahi hota, tab bhi payment kar deni hai.
+                Aap ko next page par yeh poocha jayega ke aap ne deposit karna hai. Aap Bank / Easypaisa / JazzCash me se koi method select karein, phir number copy karke payment send karein aur payment ka screenshot upload karna hoga.
             </div>
         </div>
     </div>
