@@ -9,6 +9,8 @@
 use App\Models\Deposit;
 use App\Models\User;
 use App\Models\GatewayCurrency;
+use App\Models\Plan;
+use App\Lib\HyipLab;
 use Carbon\Carbon;
 
 // --- 1. BOOT LARAVEL ---
@@ -18,38 +20,45 @@ $app->make('Illuminate\Contracts\Http\Kernel')->handle(
     Illuminate\Http\Request::capture()
 );
 
-echo "--- Starting Fake Deposit Generation ---\n";
+echo "--- Starting Fake Plan Deposit Generation ---\n";
 
 // --- 2. CONFIGURATION ---
-$count = 10; // Number of deposits to create
+$count = 10; 
 $minAmount = 10000;
 $maxAmount = 50000;
 
 // Get some random users
 $users = User::inRandomOrder()->limit(10)->get();
 if ($users->isEmpty()) {
-    die("No users found in database. Please create some users first.\n");
+    die("No users found in database.\n");
 }
 
-// Get some manual gateways (method_code >= 1000)
+// Get active plans
+$plans = Plan::where('status', 1)->get();
+if ($plans->isEmpty()) {
+    die("No active plans found.\n");
+}
+
+// Get some manual gateways
 $gateways = GatewayCurrency::where('method_code', '>=', 1000)->get();
 if ($gateways->isEmpty()) {
-    die("No manual gateways found. Please configure a manual gateway in admin panel.\n");
+    die("No manual gateways found.\n");
 }
 
 for ($i = 0; $i < $count; $i++) {
     $user = $users->random();
     $gate = $gateways->random();
+    $plan = $plans->random();
     $amount = rand($minAmount, $maxAmount);
     
     // Status: 1 = Approved, 2 = Pending, 3 = Rejected
     $statusRoll = rand(1, 10);
     if ($statusRoll <= 5) {
-        $status = 1; // 50% chance approved
+        $status = 1; 
     } elseif ($statusRoll <= 8) {
-        $status = 2; // 30% chance pending
+        $status = 2; 
     } else {
-        $status = 3; // 20% chance rejected
+        $status = 3; 
     }
     
     $charge = $gate->fixed_charge + ($amount * $gate->percent_charge / 100);
@@ -58,6 +67,7 @@ for ($i = 0; $i < $count; $i++) {
 
     $deposit = new Deposit();
     $deposit->user_id = $user->id;
+    $deposit->plan_id = $plan->id; // Link to Plan
     $deposit->method_code = $gate->method_code;
     $deposit->method_currency = strtoupper($gate->currency);
     $deposit->amount = $amount;
@@ -70,43 +80,41 @@ for ($i = 0; $i < $count; $i++) {
     $deposit->status = $status;
 
     if ($status == 3) {
-        $reasons = [
-            "Invalid transaction ID provided",
-            "Screenshot is not clear or missing",
-            "Deposited amount does not match the request",
-            "Payment source not verified",
-            "Third party payment is not allowed"
-        ];
+        $reasons = ["Invalid ID", "Unclear proof", "Amount mismatch"];
         $deposit->admin_feedback = $reasons[array_rand($reasons)];
     }
     
-    // Random date within last 2 days
     $randomDate = Carbon::now()->subMinutes(rand(0, 2880));
     $deposit->created_at = $randomDate;
     $deposit->updated_at = $randomDate;
     
-    // Fake details for the "Details" screen
     $deposit->detail = [
-        'Transaction ID' => [
-            'type' => 'text',
-            'value' => 'ID-' . rand(100000, 999999)
-        ],
-        'Sender Name' => [
-            'type' => 'text',
-            'value' => $user->username
-        ]
+        'Transaction ID' => ['type' => 'text', 'value' => 'ID-' . rand(100000, 999999)],
+        'Sender Name' => ['type' => 'text', 'value' => $user->username]
     ];
 
     $deposit->save();
     
-    // If approved, update user balance (Optional - if you want them to be "real" fake deposits)
     if ($status == 1) {
+        // Update balance first
         $user->deposit_wallet += $amount;
-        $statusText = 'Approved';
+        $user->save();
+
+        // Trigger Investment Logic
+        try {
+            $hyip = new HyipLab($user, $plan);
+            $hyip->invest($amount, 'deposit_wallet');
+        } catch (\Exception $e) {
+            echo "Investment failed for TRX {$deposit->trx}: " . $e->getMessage() . "\n";
+        }
+    }
+
+    $statusText = 'Approved (Invested)';
     if ($status == 2) $statusText = 'Pending';
     if ($status == 3) $statusText = 'Rejected';
 
-    echo "Created: User [{$user->username}] | Amount [{$amount}] | Status [{$statusText}] | TRX [{$deposit->trx}]\n";
+    echo "Created: User [{$user->username}] | Plan [{$plan->name}] | Amount [{$amount}] | Status [{$statusText}] | TRX [{$deposit->trx}]\n";
 }
 
 echo "--- Finished ---\n";
+
