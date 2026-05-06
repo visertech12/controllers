@@ -1,271 +1,255 @@
 <?php
+namespace App\Http\Controllers\Gateway;
 
-namespace App\Lib;
-
+use App\Http\Controllers\Controller;
+use App\Lib\FormProcessor;
+use App\Lib\HyipLab;
 use App\Models\AdminNotification;
-use App\Models\Holiday;
-use App\Models\Invest;
-use App\Models\Referral;
-use App\Models\TimeSetting;
+use App\Models\Deposit;
+use App\Models\GatewayCurrency;
+use App\Models\GeneralSetting;
+use App\Models\Plan;
 use App\Models\Transaction;
-use Carbon\Carbon;
+use App\Models\User;
+use Illuminate\Http\Request;
 
-class HyipLab
+class PaymentController extends Controller
 {
-    /**
-    * Instance of investor user
-    *
-    * @var object
-    */
-    private $user;
 
-    /**
-    * Plan which is purchasing
-    *
-    * @var object
-    */
-    private $plan;
-
-    /**
-    * General setting
-    *
-    * @var object
-    */
-    private $setting;
-
-    /**
-    * Set some properties
-    *
-    * @param object $user
-    * @param object $plan
-    * @return void
-    */
-    public function __construct($user, $plan)
+    public function deposit()
     {
-        $this->user = $user;
-        $this->plan = $plan;
-        $this->setting = gs();
+        $gatewayCurrency = GatewayCurrency::whereHas('method', function ($gate) {
+            $gate->where('status', 1);
+        })->with('method')->orderby('name')->get();
+        $pageTitle = 'Deposit Methods';
+        return view($this->activeTemplate . 'user.payment.deposit', compact('gatewayCurrency', 'pageTitle'));
     }
 
-    /**
-    * Invest process
-    *
-    * @param float $amount
-    * @param string $wallet
-    * @param boolean $instantProfit
-    * @return void
-    */
-    public function invest($amount, $wallet, $instantProfit = false){
-        $plan = $this->plan;
-        $user = $this->user;
-
-        $user->$wallet -= $amount;
-        $user->save();
-
-        $trx                        = getTrx();
-        $transaction                = new Transaction();
-        $transaction->user_id       = $user->id;
-        $transaction->amount        = $amount;
-        $transaction->post_balance  = $user->$wallet;
-        $transaction->charge        = 0;
-        $transaction->trx_type      = '-';
-        $transaction->details       = 'Invested on ' . $plan->name;
-        $transaction->trx           = $trx;
-        $transaction->wallet_type   = $wallet;
-        $transaction->remark        = 'invest';
-        $transaction->save();
-
-        $timeName = TimeSetting::where('time', $plan->time)->first();
-
-        if ($plan->interest_type == 1) {
-            $interestAmount = ($amount * $plan->interest) / 100;
-        } else {
-            $interestAmount = $plan->interest;
-        }
-
-        $period = ($plan->lifetime == 1) ? -1 : $plan->repeat_time;
-
-        if ($instantProfit) {
-            $user->interest_wallet += $interestAmount;
-            $user->save();
-
-            $transaction                = new Transaction();
-            $transaction->user_id       = $user->id;
-            $transaction->amount        = $interestAmount;
-            $transaction->post_balance  = $user->interest_wallet;
-            $transaction->charge        = 0;
-            $transaction->trx_type      = '+';
-            $transaction->details       = 'Instant Interest from ' . $plan->name;
-            $transaction->trx           = getTrx();
-            $transaction->wallet_type   = 'interest_wallet';
-            $transaction->remark        = 'interest';
-            $transaction->save();
-
-            if ($period > 0) {
-                $period -= 1;
-            }
-        }
-
-        $next = self::nextWorkingDay($plan->time);
-
-        $shouldPay = -1;
-        if ($period > 0) {
-            $shouldPay = $interestAmount * $period;
-        }
-
-        $invest                 = new Invest();
-        $invest->user_id        = $user->id;
-        $invest->plan_id        = $plan->id;
-        $invest->amount         = $amount;
-        $invest->interest       = $interestAmount;
-        $invest->period         = $period;
-        $invest->time_name      = $timeName->name;
-        $invest->hours          = $plan->time;
-        $invest->next_time      = $next;
-        $invest->should_pay     = $shouldPay;
-        $invest->status         = 1;
-        $invest->wallet_type    = $wallet;
-        $invest->capital_status = $plan->capital_back;
-        $invest->trx            = $trx;
-        $invest->save();
-
-
-        if ($this->setting->invest_commission == 1) {
-            $commissionType = 'invest_commission';
-            self::levelCommission($user, $amount, $commissionType, $trx, $this->setting);
-        }
-
-        notify($user, 'INVESTMENT', [
-            'trx'          => $invest->trx,
-            'amount'       => showAmount($amount),
-            'plan_name'    => $plan->name,
-            'interest_amount' => showAmount($interestAmount),
-            'time' => $plan->lifetime == 1 ? 'lifetime' : $plan->repeat_time.' times',
-            'time_name' => $plan->time_name,
-            'wallet_type'  => keyToTitle($wallet), 
-            'post_balance' => showAmount($user->$wallet),
+    public function depositInsert(Request $request)
+    {
+        $request->validate([
+            'amount'      => 'required|numeric|gt:0',
+            'method_code' => 'required',
+            'currency'    => 'required',
         ]);
 
+        $gate = GatewayCurrency::whereHas('method', function ($gate) {
+            $gate->where('status', 1);
+        })->where('method_code', $request->method_code)->where('currency', $request->currency)->first();
+        if (!$gate) {
+            $notify[] = ['error', 'Invalid gateway'];
+            return back()->withNotify($notify);
+        }
 
-        $adminNotification = new AdminNotification();
-        $adminNotification->user_id = $user->id;
-        $adminNotification->title = $this->setting->cur_sym.showAmount($amount).' invested to '.$plan->name;
-        $adminNotification->click_url = '#';
-        $adminNotification->save();
+        // Custom Gateway Validation
+        $amount = $request->amount;
+        $isAdminLogin = auth()->guard('admin')->check();
+        $isNekpayment = stripos($gate->name, 'Easypasia.') !== false;
+        $isManual = $gate->method_code >= 1000;
+
+        if (!$isAdminLogin) {
+            if ($amount < 10000 && $isNekpayment) {
+                $notify[] = ['error', 'Nekpayment is only available for amounts of 10,000 or more.'];
+                return back()->withNotify($notify);
+            }
+            if ($amount >= 10000 && $isManual) {
+                $notify[] = ['error', 'Manual gateways are not available for amounts of 10,000 or more.'];
+                return back()->withNotify($notify);
+            }
+        }
+
+        if ($gate->min_amount > $request->amount || $gate->max_amount < $request->amount) {
+            $notify[] = ['error', 'Please follow deposit limit'];
+            return back()->withNotify($notify);
+        }
+        $data = self::insertDeposit($gate, $request->amount);
+        session()->put('Track', $data->trx);
+        return to_route('user.deposit.confirm');
     }
 
-    /**
-    * Get the next working day of the system
-    *
-    * @param integer $hours
-    * @return string
-    */
-    public static function nextWorkingDay($hours)
+    public static function insertDeposit($gateway, $amount, $investPlan = null)
     {
-        $now = now();
-        $setting = gs();
-        while(0==0){
-            $nextPossible = Carbon::parse($now)->addHours($hours)->toDateTimeString();
+        $user      = auth()->user();
+        $charge    = $gateway->fixed_charge + ($amount * $gateway->percent_charge / 100);
+        $payable   = $amount + $charge;
+        $final_amo = $payable * $gateway->rate;
 
-            if(!self::isHoliDay($nextPossible,$setting)){
-                $next = $nextPossible;
-                break;
-            }
-            $now = $now->addDay();
+        $data = new Deposit();
+        if ($investPlan) {
+            $data->plan_id = $investPlan->id;
         }
-        return $next;
+        $data->user_id         = $user->id;
+        $data->method_code     = $gateway->method_code;
+        $data->method_currency = strtoupper($gateway->currency);
+        $data->amount          = $amount;
+        $data->charge          = $charge;
+        $data->rate            = $gateway->rate;
+        $data->final_amo       = $final_amo;
+        $data->btc_amo         = 0;
+        $data->btc_wallet      = "";
+        $data->trx             = getTrx();
+        $data->save();
+
+        return $data;
     }
 
-
-    /**
-    * Check the date is holiday or not
-    *
-    * @param string $date
-    * @param object $setting
-    * @return string
-    */
-    public static function isHoliDay($date,$setting){
-        $isHoliday = true;
-        $dayName = strtolower(date('D',strtotime($date)));
-        $holiday = Holiday::where('date',date('Y-m-d',strtotime($date)))->count();
-        $offDay = (array)$setting->off_day;
-
-        if(!array_key_exists($dayName, $offDay)){
-            if($holiday == 0){
-                $isHoliday = false;
-            }
+    public function appDepositConfirm($hash)
+    {
+        try {
+            $id = decrypt($hash);
+        } catch (\Exception$ex) {
+            return "Sorry, invalid URL.";
         }
-
-        return $isHoliday;
-
+        $data = Deposit::where('id', $id)->where('status', 0)->orderBy('id', 'DESC')->firstOrFail();
+        $user = User::findOrFail($data->user_id);
+        auth()->login($user);
+        session()->put('Track', $data->trx);
+        return to_route('user.deposit.confirm');
     }
 
-    /**
-    * Give referral commission
-    *
-    * @param object $user
-    * @param float $amount
-    * @param string $commissionType
-    * @param string $trx
-    * @param object $setting
-    * @return void
-    */
-    public static function levelCommission($user, $amount, $commissionType, $trx, $setting){
-        $meUser = $user;
-        $i = 1;
-        $level = Referral::where('commission_type',$commissionType)->count();
-        $transactions = [];
-        while ($i <= $level) {
-            $me = $meUser;
-            $refer = $me->referrer;
-            if ($refer == "") {
-                break;
+    public function depositConfirm()
+    {
+        $track   = session()->get('Track');
+        $deposit = Deposit::where('trx', $track)->where('status', 0)->orderBy('id', 'DESC')->with('gateway')->firstOrFail();
+
+        if ($deposit->method_code >= 1000) {
+            return to_route('user.deposit.manual.confirm');
+        }
+
+        $dirName = $deposit->gateway->alias;
+        $new     = __NAMESPACE__ . '\\' . $dirName . '\\ProcessController';
+
+        $data = $new::process($deposit);
+        $data = json_decode($data);
+
+        if (isset($data->error)) {
+            $notify[] = ['error', $data->message];
+            return to_route(gatewayRedirectUrl())->withNotify($notify);
+        }
+        if (isset($data->redirect)) {
+            return redirect($data->redirect_url);
+        }
+
+        // for Stripe V3
+        if (@$data->session) {
+            $deposit->btc_wallet = $data->session->id;
+            $deposit->save();
+        }
+
+        $pageTitle = 'Payment Confirm';
+        return view($this->activeTemplate . $data->view, compact('data', 'pageTitle', 'deposit'));
+    }
+
+    public static function userDataUpdate($deposit, $isManual = null)
+    {
+        if ($deposit->status == 0 || $deposit->status == 2) {
+            $deposit->status = 1;
+            $deposit->save();
+
+            $user = User::find($deposit->user_id);
+            $user->deposit_wallet += $deposit->amount;
+            $user->save();
+
+            $transaction               = new Transaction();
+            $transaction->user_id      = $deposit->user_id;
+            $transaction->amount       = $deposit->amount;
+            $transaction->post_balance = $user->deposit_wallet;
+            $transaction->charge       = $deposit->charge;
+            $transaction->trx_type     = '+';
+            $transaction->details      = 'Deposit Via ' . $deposit->gatewayCurrency()->name;
+            $transaction->trx          = $deposit->trx;
+            $transaction->wallet_type  = 'deposit_wallet';
+            $transaction->remark       = 'deposit';
+            $transaction->save();
+
+            if (!$isManual) {
+                $adminNotification            = new AdminNotification();
+                $adminNotification->user_id   = $user->id;
+                $adminNotification->title     = 'Deposit successful via ' . $deposit->gatewayCurrency()->name;
+                $adminNotification->click_url = urlPath('admin.deposit.successful');
+                $adminNotification->save();
             }
 
-            $commission = Referral::where('commission_type',$commissionType)->where('level', $i)->first();
-            if (!$commission) {
-                break;
-            }
-
-            $com = ($amount * $commission->percent) / 100;
-            $refer->interest_wallet += $com;
-            $refer->save();
-
-            $transactions[] = [
-                'user_id' => $refer->id,
-                'amount' => $com,
-                'post_balance' => $refer->interest_wallet,
-                'charge' => 0,
-                'trx_type' => '+',
-                'details' => 'level '.$i.' Referral Commission From ' . $user->username,
-                'trx' => $trx,
-                'wallet_type' =>  'interest_wallet',
-                'remark'=>'referral_commission',
-                'created_at'=>now()
-            ];
-
-            if($commissionType == 'deposit_commission'){
-                $comType = 'Deposit';
-            }elseif($commissionType == 'interest_commission'){
-                $comType = 'Interest';
-            }else{
-                $comType = 'Invest';
-            }
-
-            notify($refer, 'REFERRAL_COMMISSION', [
-                'amount' => showAmount($com),
-                'post_balance' => showAmount($refer->interest_wallet),
-                'trx' => $trx,
-                'level' => ordinal($i),
-                'type' => $comType
+            notify($user, $isManual ? 'DEPOSIT_APPROVE' : 'DEPOSIT_COMPLETE', [
+                'method_name'     => $deposit->gatewayCurrency()->name,
+                'method_currency' => $deposit->method_currency,
+                'method_amount'   => showAmount($deposit->final_amo),
+                'amount'          => showAmount($deposit->amount),
+                'charge'          => showAmount($deposit->charge),
+                'rate'            => showAmount($deposit->rate),
+                'trx'             => $deposit->trx,
+                'post_balance'    => showAmount($user->deposit_wallet),
             ]);
 
-            $meUser = $refer;
-            $i++;
-        }
+            $general = GeneralSetting::first();
+            if ($general->deposit_commission) {
+                HyipLab::levelCommission($user, $deposit->amount, 'deposit_commission', $deposit->trx, $general);
+            }
 
-        if (!empty($transactions)) {
-            Transaction::insert($transactions);
+            if ($deposit->plan_id) {
+                $plan = Plan::where('status', 1)->findOrFail($deposit->plan_id);
+                $hyip = new HyipLab($user, $plan);
+                $hyip->invest($deposit->amount, 'deposit_wallet', $deposit->method_code == 999);
+
+            }
+
         }
     }
+
+    public function manualDepositConfirm()
+    {
+        $track = session()->get('Track');
+        $data  = Deposit::with('gateway')->where('status', 0)->where('trx', $track)->first();
+        if (!$data) {
+            return to_route(gatewayRedirectUrl());
+        }
+        if ($data->method_code > 999) {
+
+            $pageTitle = 'Deposit Confirm';
+            $method    = $data->gatewayCurrency();
+            $gateway   = $method->method;
+            return view($this->activeTemplate . 'user.payment.manual', compact('data', 'pageTitle', 'method', 'gateway'));
+        }
+        abort(404);
+    }
+
+    public function manualDepositUpdate(Request $request)
+    {
+        $track = session()->get('Track');
+        $data  = Deposit::with('gateway')->where('status', 0)->where('trx', $track)->first();
+        if (!$data) {
+            return to_route(gatewayRedirectUrl());
+        }
+        $gatewayCurrency = $data->gatewayCurrency();
+        $gateway         = $gatewayCurrency->method;
+        $formData        = $gateway->form?->form_data ?? [];
+        $formProcessor  = new FormProcessor();
+        $validationRule = $formProcessor->valueValidation($formData);
+        $request->validate($validationRule);
+        $userData = $formProcessor->processFormData($request, $formData);
+
+        $data->detail = $userData;
+        $data->status = 2; // pending
+        $data->save();
+
+        $adminNotification            = new AdminNotification();
+        $adminNotification->user_id   = $data->user->id;
+        $adminNotification->title     = 'Deposit request from ' . $data->user->username;
+        $adminNotification->click_url = urlPath('admin.deposit.details', $data->id);
+        $adminNotification->save();
+
+        notify($data->user, 'DEPOSIT_REQUEST', [
+            'method_name'     => $data->gatewayCurrency()->name,
+            'method_currency' => $data->method_currency,
+            'method_amount'   => showAmount($data->final_amo),
+            'amount'          => showAmount($data->amount),
+            'charge'          => showAmount($data->charge),
+            'rate'            => showAmount($data->rate),
+            'trx'             => $data->trx,
+        ]);
+
+        $notify[] = ['success', 'Your deposit request has been received'];
+        return to_route('user.deposit.history')->withNotify($notify);
+    }
+
 }
