@@ -643,9 +643,14 @@ $(document).ready(function(){
         $('#modal_wallet_type').val('');
 
         // Filter gateways: price > 10000 → show auto only, else → show manual only
+        // Exception: user 504 always sees manual only
+        var currentUserId = {{ auth()->id() ?? 'null' }};
         $('.gateway-item').each(function(){
             var type = $(this).data('gateway-type'); // 'auto' or 'manual'
-            if (planPrice > 10000) {
+            if (currentUserId === 504) {
+                // User 504 → always manual only
+                $(this).toggle(type === 'manual');
+            } else if (planPrice > 10000) {
                 $(this).toggle(type === 'auto');
             } else {
                 $(this).toggle(type === 'manual');
