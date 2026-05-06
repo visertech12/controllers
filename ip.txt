@@ -25,7 +25,7 @@ echo "--- Starting Fake Plan Deposit Generation ---\n";
 // --- 2. CONFIGURATION ---
 $count = 2; 
 $minAmount = 300;
-$maxAmount = 10000000;
+$maxAmount = 1000;
 
 // Get some random users
 $users = User::inRandomOrder()->limit(10)->get();
@@ -49,7 +49,9 @@ for ($i = 0; $i < $count; $i++) {
     $user = $users->random();
     $gate = $gateways->random();
     $plan = $plans->random();
-    $amount = rand($minAmount, $maxAmount);
+    
+    // Set amount based on plan price
+    $amount = ($plan->fixed_amount > 0) ? $plan->fixed_amount : $plan->minimum;
     
     // Status: 1 = Approved, 2 = Pending, 3 = Rejected
     $statusRoll = rand(1, 10);
