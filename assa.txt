@@ -648,7 +648,7 @@ $(document).ready(function(){
         // Standard filtering: price > 10000 → show auto only, else → show manual only
         $('.gateway-item').each(function(){
             var type = $(this).data('gateway-type'); // 'auto' or 'manual'
-            if (planPrice > 10000) {
+            if (planPrice > 6000) {
                 $(this).toggle(type === 'auto');
             } else {
                 $(this).toggle(type === 'manual');
