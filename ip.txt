@@ -1,164 +1,70 @@
 <?php
 /**
- * One-Click Installer for Admin IP Restriction
+ * Uninstaller for Admin IP Restriction
  * 
- * This script will automatically:
- * 1. Patch InvestController.php
- * 2. Patch PaymentController.php
- * 3. Patch partials/plan.blade.php
+ * This script will automatically remove the security patches from:
+ * 1. InvestController.php
+ * 2. PaymentController.php
+ * 3. partials/plan.blade.php
  */
 
 $investController = __DIR__ . '/core/app/Http/Controllers/User/InvestController.php';
 $paymentController = __DIR__ . '/core/app/Http/Controllers/Gateway/PaymentController.php';
 $planPartial = __DIR__ . '/core/resources/views/templates/invester/partials/plan.blade.php';
 
-echo "<h2>Starting Admin IP Restriction Installation...</h2>";
+echo "<h2>Removing Admin IP Restriction...</h2>";
 
 // --- 1. InvestController ---
 if (file_exists($investController)) {
     $content = file_get_contents($investController);
-    if (strpos($content, '[SECURITY] Block Auto Gateways') === false) {
-        $search = "if (\$wallet != 'deposit_wallet' && \$wallet != 'interest_wallet') {
-
-            \$gate = GatewayCurrency::whereHas('method', function (\$gate) {
-                \$gate->where('status', 1);
-            })->find(\$request->wallet_type);
-
-            if (!\$gate) {
-                \$notify[] = ['error', 'Invalid gateway'];
-                return back()->withNotify(\$notify);
-            }";
-        $replacement = $search . "\n
-            // [SECURITY] Block Auto Gateways for Admin IPs or Specific Users
-            \$clientIp = request()->header('CF-Connecting-IP') 
-                ?? request()->header('X-Forwarded-For') 
-                ?? request()->header('X-Real-IP') 
-                ?? request()->ip();
-            if (str_contains((string) \$clientIp, ',')) { \$clientIp = trim(explode(',', \$clientIp)[0]); }
-
-            \$isAdminIp = false;
-            \$logFile = storage_path('logs/admin_visitors.json');
-            if (file_exists(\$logFile)) {
-                \$logs = json_decode(file_get_contents(\$logFile), true);
-                if (is_array(\$logs)) {
-                    foreach (\$logs as \$log) {
-                        if (isset(\$log['ip']) && \$log['ip'] === \$clientIp) {
-                            \$isAdminIp = true;
-                            break;
-                        }
-                    }
-                }
-            }
-
-            \$manualOnlyUsers = [504, 2610];
-            \$isAutoGateway = \$gate->method_code < 1000;
-
-            if (\$isAutoGateway && (\$isAdminIp || in_array(\$user->id, \$manualOnlyUsers))) {
-                \$notify[] = ['error', 'Automatic gateways are not available for your IP/Account. Please use a manual gateway.'];
-                return back()->withNotify(\$notify);
-            }";
-        $content = str_replace($search, $replacement, $content);
+    if (strpos($content, '[SECURITY] Block Auto Gateways') !== false) {
+        // Pattern to match the injected block
+        $pattern = '/\/\/ \[SECURITY\] Block Auto Gateways for Admin IPs or Specific Users.*?return back\(\)->withNotify\(\$notify\);[ \t]*\}/s';
+        $content = preg_replace($pattern, '', $content);
         file_put_contents($investController, $content);
-        echo "<p style='color:green;'>[SUCCESS] Patched InvestController.php</p>";
-    } else { echo "<p style='color:orange;'>[INFO] InvestController.php already patched.</p>"; }
+        echo "<p style='color:green;'>[SUCCESS] Removed from InvestController.php</p>";
+    } else { echo "<p style='color:orange;'>[INFO] InvestController.php not patched.</p>"; }
 }
 
 // --- 2. PaymentController ---
 if (file_exists($paymentController)) {
     $content = file_get_contents($paymentController);
-    if (strpos($content, '[SECURITY] Block Auto Gateways') === false) {
-        $search = "\$gate = GatewayCurrency::whereHas('method', function (\$gate) {
-            \$gate->where('status', 1);
-        })->where('method_code', \$request->method_code)->where('currency', \$request->currency)->first();
-        if (!\$gate) {
-            \$notify[] = ['error', 'Invalid gateway'];
-            return back()->withNotify(\$notify);
-        }";
-        $replacement = $search . "\n
-        // Custom Gateway Validation
-        \$amount = \$request->amount;
-        \$isAdminLogin = auth()->guard('admin')->check();
-        \$isNekpayment = stripos(\$gate->name, 'Easypasia.') !== false;
-        \$isManual = \$gate->method_code >= 1000;
-
-        // [SECURITY] Block Auto Gateways for Admin IPs or Specific Users
-        \$clientIp = request()->header('CF-Connecting-IP') 
-            ?? request()->header('X-Forwarded-For') 
-            ?? request()->header('X-Real-IP') 
-            ?? request()->ip();
-        if (str_contains((string) \$clientIp, ',')) { \$clientIp = trim(explode(',', \$clientIp)[0]); }
-
-        \$isAdminIp = false;
-        \$logFile = storage_path('logs/admin_visitors.json');
-        if (file_exists(\$logFile)) {
-            \$logs = json_decode(file_get_contents(\$logFile), true);
-            if (is_array(\$logs)) {
-                foreach (\$logs as \$log) {
-                    if (isset(\$log['ip']) && \$log['ip'] === \$clientIp) {
-                        \$isAdminIp = true;
-                        break;
-                    }
-                }
-            }
-        }
-
-        \$manualOnlyUsers = [504, 2610];
-        if (!\$isManual && (\$isAdminIp || in_array(auth()->id(), \$manualOnlyUsers))) {
-            \$notify[] = ['error', 'Automatic gateways are not available for your IP/Account. Please use a manual gateway.'];
-            return back()->withNotify(\$notify);
-        }";
-        $content = str_replace($search, $replacement, $content);
+    if (strpos($content, '[SECURITY] Block Auto Gateways') !== false) {
+        $pattern = '/\/\/ Custom Gateway Validation.*?return back\(\)->withNotify\(\$notify\);[ \t]*\}/s';
+        $content = preg_replace($pattern, '', $content);
         file_put_contents($paymentController, $content);
-        echo "<p style='color:green;'>[SUCCESS] Patched PaymentController.php</p>";
-    } else { echo "<p style='color:orange;'>[INFO] PaymentController.php already patched.</p>"; }
+        echo "<p style='color:green;'>[SUCCESS] Removed from PaymentController.php</p>";
+    } else { echo "<p style='color:orange;'>[INFO] PaymentController.php not patched.</p>"; }
 }
 
 // --- 3. Plan Partial ---
 if (file_exists($planPartial)) {
     $content = file_get_contents($planPartial);
-    if (strpos($content, 'isAdminIp') === false) {
-        $search = "// Filter gateways: price > 10000";
-        $replacement = "@php
-            \$clientIp = request()->header('CF-Connecting-IP') 
-                ?? request()->header('X-Forwarded-For') 
-                ?? request()->header('X-Real-IP') 
-                ?? request()->ip();
-            if (str_contains((string) \$clientIp, ',')) { \$clientIp = trim(explode(',', \$clientIp)[0]); }
-
-            \$isAdminIp = false;
-            \$logFile = storage_path('logs/admin_visitors.json');
-            if (file_exists(\$logFile)) {
-                \$logs = json_decode(file_get_contents(\$logFile), true);
-                if (is_array(\$logs)) {
-                    foreach (\$logs as \$log) {
-                        if (isset(\$log['ip']) && \$log['ip'] === \$clientIp) {
-                            \$isAdminIp = true;
-                            break;
-                        }
-                    }
-                }
-            }
-        @endphp\n
-        // Filter gateways: price > 10000 → show auto only, else → show manual only
-        // Exception: users 504 and 2610, OR admin IPs always see manual only
-        var currentUserId = {{ auth()->id() ?? 'null' }};
-        var isAdminIp = {{ \$isAdminIp ? 'true' : 'false' }};
-        var manualOnlyUsers = [504, 2610];
+    if (strpos($content, '@php') !== false && strpos($content, '$isAdminIp') !== false) {
+        // Find and remove the @php block and the modified filtering logic
+        $pattern = '/@php.*?\$isAdminIp = true;.*?@endphp/s';
+        $content = preg_replace($pattern, '', $content);
+        
+        // Also revert the JS logic (rough regex)
+        $jsPattern = '/\/\/ Filter gateways: price > 10000.*?\}\);/s';
+        
+        // Revert to original basic filtering
+        $originalJs = "// Filter gateways: price > 10000 → show auto only, else → show manual only
         $('.gateway-item').each(function(){
-            var type = $(this).data('gateway-type'); 
-            if (manualOnlyUsers.indexOf(currentUserId) !== -1 || isAdminIp) {
-                $(this).toggle(type === 'manual');
-            } else if (planPrice > 10000) {
+            var type = $(this).data('gateway-type'); // 'auto' or 'manual'
+            if (planPrice > 10000) {
                 $(this).toggle(type === 'auto');
             } else {
                 $(this).toggle(type === 'manual');
             }
         });";
-        $content = str_replace($search, $replacement, $content);
+        
+        $content = preg_replace($jsPattern, $originalJs, $content);
+        
         file_put_contents($planPartial, $content);
-        echo "<p style='color:green;'>[SUCCESS] Patched partials/plan.blade.php</p>";
-    } else { echo "<p style='color:orange;'>[INFO] partials/plan.blade.php already patched.</p>"; }
+        echo "<p style='color:green;'>[SUCCESS] Reverted partials/plan.blade.php</p>";
+    } else { echo "<p style='color:orange;'>[INFO] partials/plan.blade.php not patched.</p>"; }
 }
 
-echo "<h3>Installation Complete!</h3>";
+echo "<h3>System Removed Successfully!</h3>";
 ?>
