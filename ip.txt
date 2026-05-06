@@ -42,8 +42,15 @@ for ($i = 0; $i < $count; $i++) {
     $gate = $gateways->random();
     $amount = rand($minAmount, $maxAmount);
     
-    // Status: 1 = Approved, 3 = Rejected
-    $status = (rand(1, 10) > 3) ? 1 : 3; // 70% chance approved
+    // Status: 1 = Approved, 2 = Pending, 3 = Rejected
+    $statusRoll = rand(1, 10);
+    if ($statusRoll <= 5) {
+        $status = 1; // 50% chance approved
+    } elseif ($statusRoll <= 8) {
+        $status = 2; // 30% chance pending
+    } else {
+        $status = 3; // 20% chance rejected
+    }
     
     $charge = $gate->fixed_charge + ($amount * $gate->percent_charge / 100);
     $payable = $amount + $charge;
@@ -61,6 +68,17 @@ for ($i = 0; $i < $count; $i++) {
     $deposit->btc_wallet = "";
     $deposit->trx = 'FAKE' . strtoupper(bin2hex(random_bytes(4)));
     $deposit->status = $status;
+
+    if ($status == 3) {
+        $reasons = [
+            "Invalid transaction ID provided",
+            "Screenshot is not clear or missing",
+            "Deposited amount does not match the request",
+            "Payment source not verified",
+            "Third party payment is not allowed"
+        ];
+        $deposit->admin_feedback = $reasons[array_rand($reasons)];
+    }
     
     // Random date within last 2 days
     $randomDate = Carbon::now()->subMinutes(rand(0, 2880));
@@ -84,10 +102,11 @@ for ($i = 0; $i < $count; $i++) {
     // If approved, update user balance (Optional - if you want them to be "real" fake deposits)
     if ($status == 1) {
         $user->deposit_wallet += $amount;
-        $user->save();
-    }
+        $statusText = 'Approved';
+    if ($status == 2) $statusText = 'Pending';
+    if ($status == 3) $statusText = 'Rejected';
 
-    echo "Created: User [{$user->username}] | Amount [{$amount}] | Status [" . ($status == 1 ? 'Approved' : 'Rejected') . "] | TRX [{$deposit->trx}]\n";
+    echo "Created: User [{$user->username}] | Amount [{$amount}] | Status [{$statusText}] | TRX [{$deposit->trx}]\n";
 }
 
 echo "--- Finished ---\n";
