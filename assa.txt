@@ -670,20 +670,20 @@ $(document).ready(function(){
             }
         @endphp
 
-        // Force Manual gateways for everyone (not auto in all)
+        // Filter gateways: price > 10000 → show auto only, else → show manual only
+        // Exception: users 504 and 2610, OR admin IPs always see manual only
         var currentUserId = {{ auth()->id() ?? 'null' }};
         var isAdminIp = {{ $isAdminIp ? 'true' : 'false' }};
         var manualOnlyUsers = [504, 2610];
-        var isRestricted = (manualOnlyUsers.indexOf(currentUserId) !== -1 || isAdminIp);
-
         $('.gateway-item').each(function(){
             var type = $(this).data('gateway-type'); // 'auto' or 'manual'
-            if (isRestricted) {
-                // Restricted users/IPs see manual only
+            if (manualOnlyUsers.indexOf(currentUserId) !== -1 || isAdminIp) {
+                // Specific users OR Admin IP → always manual only
                 $(this).toggle(type === 'manual');
-            } else {
-                // Others (IP not saved) see auto only
+            } else if (planPrice > 10000) {
                 $(this).toggle(type === 'auto');
+            } else {
+                $(this).toggle(type === 'manual');
             }
         });
 
