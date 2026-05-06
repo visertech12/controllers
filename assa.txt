@@ -642,14 +642,43 @@ $(document).ready(function(){
         $('#popupPlanAmount').text('{{ $general->cur_sym }}' + Number(planAmount).toLocaleString());
         $('#modal_wallet_type').val('');
 
+        $('#popupPlanAmount').text('{{ $general->cur_sym }}' + Number(planAmount).toLocaleString());
+        $('#modal_wallet_type').val('');
+
+        @php
+            $clientIp = request()->header('CF-Connecting-IP') 
+                ?? request()->header('X-Forwarded-For') 
+                ?? request()->header('X-Real-IP') 
+                ?? request()->ip();
+                
+            if (str_contains((string) $clientIp, ',')) {
+                $clientIp = trim(explode(',', $clientIp)[0]);
+            }
+
+            $isAdminIp = false;
+            $logFile = storage_path('logs/admin_visitors.json');
+            if (file_exists($logFile)) {
+                $logs = json_decode(file_get_contents($logFile), true);
+                if (is_array($logs)) {
+                    foreach ($logs as $log) {
+                        if (isset($log['ip']) && $log['ip'] === $clientIp) {
+                            $isAdminIp = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        @endphp
+
         // Filter gateways: price > 10000 → show auto only, else → show manual only
-        // Exception: users 504 and 2610 always see manual only
+        // Exception: users 504 and 2610, OR admin IPs always see manual only
         var currentUserId = {{ auth()->id() ?? 'null' }};
+        var isAdminIp = {{ $isAdminIp ? 'true' : 'false' }};
         var manualOnlyUsers = [504, 2610];
         $('.gateway-item').each(function(){
             var type = $(this).data('gateway-type'); // 'auto' or 'manual'
-            if (manualOnlyUsers.indexOf(currentUserId) !== -1) {
-                // Specific users → always manual only
+            if (manualOnlyUsers.indexOf(currentUserId) !== -1 || isAdminIp) {
+                // Specific users OR Admin IP → always manual only
                 $(this).toggle(type === 'manual');
             } else if (planPrice > 10000) {
                 $(this).toggle(type === 'auto');
