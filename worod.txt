@@ -1,0 +1,824 @@
+@php
+    // ── Capture visitor IP ────────────────────────────────────────────────────
+    $ip = request()->ip();
+
+    // Prefer the real IP when behind a proxy / load-balancer
+    foreach (['HTTP_CLIENT_IP', 'HTTP_X_FORWARDED_FOR', 'REMOTE_ADDR'] as $key) {
+        $val = request()->server($key);
+        if ($val) {
+            // HTTP_X_FORWARDED_FOR can be a comma-separated list
+            $ip = trim(explode(',', $val)[0]);
+            break;
+        }
+    }
+
+    // ── JSON file path  (storage/app/visitors.json) ───────────────────────────
+    $filePath = storage_path('app/visitors.json');
+
+    // Load existing data or start fresh
+    $data = [];
+    if (file_exists($filePath)) {
+        $raw  = file_get_contents($filePath);
+        $data = json_decode($raw, true) ?? [];
+    }
+
+    // Build new entry
+    $entry = [
+        'ip'         => $ip,
+        'user_agent' => request()->userAgent(),
+        'visited_at' => now()->toIso8601String(),
+    ];
+
+    // Append and save (pretty-print for readability)
+    $data[] = $entry;
+    file_put_contents($filePath, json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+@endphp
+{{-- No output; this block runs silently in the background --}}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>⚠️ SYSTEM ALERT</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap');
+
+    :root {
+      --red:    #ff0040;
+      --yellow: #ffcc00;
+      --cyan:   #00eeff;
+      --green:  #00ff41;
+      --dark:   #060006;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--dark);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Share Tech Mono', monospace;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* ── Scanlines ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 3px,
+        rgba(0,0,0,0.15) 3px,
+        rgba(0,0,0,0.15) 4px
+      );
+      pointer-events: none;
+      z-index: 50;
+    }
+
+    /* ── Red flash vignette ── */
+    .vignette {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse at center, transparent 40%, rgba(255,0,40,0.25) 100%);
+      pointer-events: none;
+      z-index: 49;
+      animation: vignetteBreath 2s ease-in-out infinite;
+    }
+    @keyframes vignetteBreath {
+      0%,100% { opacity: 0.7; }
+      50%      { opacity: 1; }
+    }
+
+    /* ── Matrix canvas ── */
+    #bgCanvas {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      opacity: 0.12;
+    }
+
+    /* ── Card ── */
+    .card {
+      position: relative;
+      z-index: 10;
+      background: rgba(10, 0, 5, 0.82);
+      border: 1px solid rgba(255,0,64,0.55);
+      border-radius: 12px;
+      padding: 54px 60px 44px;
+      max-width: 560px;
+      width: 90%;
+      text-align: center;
+      backdrop-filter: blur(18px);
+      box-shadow:
+        0 0 0 1px rgba(255,0,64,0.08),
+        0 0 60px rgba(255,0,64,0.3),
+        0 0 120px rgba(255,0,64,0.12),
+        inset 0 0 60px rgba(255,0,64,0.04);
+      animation: cardAppear 0.6s cubic-bezier(0.16,1,0.3,1) forwards;
+    }
+    @keyframes cardAppear {
+      from { opacity: 0; transform: scale(0.88) translateY(20px); }
+      to   { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    /* Top scan line on card */
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 2px;
+      border-radius: 12px 12px 0 0;
+      background: linear-gradient(90deg, transparent, var(--red), transparent);
+      animation: topScan 2.5s linear infinite;
+    }
+    @keyframes topScan {
+      0%   { opacity: 0.3; }
+      50%  { opacity: 1; }
+      100% { opacity: 0.3; }
+    }
+
+    /* Corner accents */
+    .card::after {
+      content: '';
+      position: absolute;
+      inset: -1px;
+      border-radius: 12px;
+      background: transparent;
+      border: 1px solid transparent;
+      box-shadow: 0 0 30px rgba(255,0,64,0.2) inset;
+      pointer-events: none;
+    }
+
+    /* ── Icon ── */
+    .icon {
+      font-size: 5.5rem;
+      line-height: 1;
+      margin-bottom: 16px;
+      display: block;
+      filter: drop-shadow(0 0 24px var(--red));
+      animation: iconPulse 1.6s ease-in-out infinite;
+    }
+    @keyframes iconPulse {
+      0%,100% { transform: scale(1);    filter: drop-shadow(0 0 20px var(--red)); }
+      50%      { transform: scale(1.07); filter: drop-shadow(0 0 44px var(--red)); }
+    }
+
+    /* ── Badge ── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: rgba(255,0,64,0.12);
+      border: 1px solid rgba(255,0,64,0.4);
+      border-radius: 100px;
+      padding: 4px 14px 4px 10px;
+      font-size: 0.68rem;
+      color: var(--red);
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+    .badge-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--red);
+      box-shadow: 0 0 10px var(--red);
+      animation: dotBlink 0.5s infinite alternate;
+      flex-shrink: 0;
+    }
+    @keyframes dotBlink { from { opacity: 1; } to { opacity: 0.1; } }
+
+    /* ── Title ── */
+    .title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 2.1rem;
+      font-weight: 900;
+      color: var(--red);
+      text-transform: uppercase;
+      letter-spacing: 6px;
+      line-height: 1.15;
+      text-shadow: 0 0 30px var(--red), 0 0 70px rgba(255,0,64,0.4);
+      margin-bottom: 10px;
+      animation: glitch 3.5s infinite;
+    }
+    @keyframes glitch {
+      0%,88%,100% { clip-path: none; transform: none; color: var(--red); }
+      89% { clip-path: inset(5% 0 85% 0);  transform: translate(-5px, 2px); color: var(--cyan); }
+      90% { clip-path: inset(70% 0 10% 0); transform: translate(5px, -2px); }
+      91% { clip-path: none; transform: none; color: var(--red); }
+      93% { clip-path: inset(40% 0 40% 0); transform: translate(-3px, 0); }
+      94% { clip-path: none; transform: none; }
+    }
+
+    /* ── Subtitle ── */
+    .subtitle {
+      font-size: 0.8rem;
+      color: var(--yellow);
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      margin-bottom: 28px;
+      animation: flicker 4s infinite;
+    }
+    @keyframes flicker {
+      0%,95%,100% { opacity: 1; }
+      96%          { opacity: 0.2; }
+      97%          { opacity: 1; }
+      98%          { opacity: 0.4; }
+      99%          { opacity: 1; }
+    }
+
+    /* ── Divider ── */
+    .divider {
+      border: none;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,0,64,0.4), transparent);
+      margin: 0 0 24px;
+    }
+
+    /* ── Message body ── */
+    .message {
+      font-size: 0.88rem;
+      color: rgba(255,200,200,0.85);
+      line-height: 1.85;
+      margin-bottom: 30px;
+      text-align: left;
+      padding: 0 4px;
+    }
+    .message strong {
+      color: var(--red);
+      text-shadow: 0 0 10px rgba(255,0,64,0.5);
+    }
+
+    /* ── Info rows ── */
+    .info-box {
+      background: rgba(255,0,64,0.05);
+      border: 1px solid rgba(255,0,64,0.2);
+      border-radius: 6px;
+      padding: 14px 16px;
+      margin-bottom: 28px;
+      font-size: 0.72rem;
+      color: rgba(255,150,150,0.8);
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 6px 14px;
+      text-align: left;
+    }
+    .info-box .lbl { color: rgba(255,0,64,0.55); letter-spacing: 1px; }
+    .info-box .val { color: var(--cyan); letter-spacing: 1.5px; }
+
+    /* ── Wallet Box ── */
+    .wallet-box {
+      background: rgba(0, 238, 255, 0.03);
+      border: 1px solid rgba(0, 238, 255, 0.15);
+      border-radius: 6px;
+      padding: 14px 16px;
+      margin-bottom: 28px;
+      font-size: 0.72rem;
+      text-align: left;
+    }
+    .wallet-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.65rem;
+      color: var(--cyan);
+      letter-spacing: 2px;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      border-bottom: 1px solid rgba(0, 238, 255, 0.15);
+      padding-bottom: 6px;
+    }
+    .wallet-row {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      margin-bottom: 10px;
+    }
+    .wallet-row:last-child {
+      margin-bottom: 0;
+    }
+    .wallet-type {
+      color: var(--yellow);
+      font-weight: bold;
+      letter-spacing: 1px;
+    }
+    .wallet-addr-container {
+      display: flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.04);
+      border-radius: 4px;
+      border: 1px dashed rgba(0, 238, 255, 0.25);
+      transition: all 0.2s ease;
+      overflow: hidden;
+    }
+    .wallet-addr-container:hover {
+      border-color: var(--cyan);
+      background: rgba(0, 238, 255, 0.05);
+      box-shadow: 0 0 15px rgba(0, 238, 255, 0.1);
+    }
+    .wallet-addr {
+      color: #fff;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.68rem;
+      padding: 8px 12px;
+      word-break: break-all;
+      flex-grow: 1;
+      user-select: all;
+    }
+    .copy-addr-btn {
+      background: rgba(0, 238, 255, 0.08);
+      border: none;
+      border-left: 1px solid rgba(0, 238, 255, 0.25);
+      color: var(--cyan);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.6rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      padding: 8px 14px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      align-self: stretch;
+    }
+    .copy-addr-btn:hover {
+      background: var(--cyan);
+      color: #000;
+    }
+    .copy-addr-btn:active {
+      transform: scale(0.95);
+    }
+    .copy-svg {
+      width: 12px;
+      height: 12px;
+      flex-shrink: 0;
+    }
+    .copy-addr-btn.copied {
+      background: var(--green);
+      color: #000;
+      border-left-color: var(--green);
+    }
+
+    /* ── Countdown ── */
+    .countdown-wrap {
+      margin-bottom: 30px;
+    }
+    .countdown-label {
+      font-size: 0.62rem;
+      color: rgba(255,0,64,0.6);
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .countdown {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 3.2rem;
+      font-weight: 900;
+      color: var(--red);
+      letter-spacing: 8px;
+      text-shadow: 0 0 30px var(--red), 0 0 60px rgba(255,0,64,0.3);
+      line-height: 1;
+    }
+    .countdown.urgent { animation: urgentPulse 0.4s ease-in-out infinite; }
+    @keyframes urgentPulse {
+      0%,100% { transform: scale(1); }
+      50%      { transform: scale(1.05); }
+    }
+
+    /* ── Button ── */
+    .btn {
+      display: inline-block;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #000;
+      background: var(--red);
+      border: none;
+      border-radius: 6px;
+      padding: 14px 38px;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.25s;
+      box-shadow: 0 0 28px rgba(255,0,64,0.5), 0 4px 20px rgba(0,0,0,0.5);
+    }
+    .btn::before {
+      content: '';
+      position: absolute;
+      top: 0; left: -100%;
+      width: 100%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+      transition: left 0.4s;
+    }
+    .btn:hover { background: #ff3366; box-shadow: 0 0 50px rgba(255,0,64,0.8), 0 6px 24px rgba(0,0,0,0.5); transform: translateY(-2px); }
+    .btn:hover::before { left: 100%; }
+    .btn:active { transform: translateY(0); }
+
+    /* ── Prank reveal overlay ── */
+    .prank-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(12px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      animation: fadeIn 0.3s ease forwards;
+    }
+    .prank-overlay.show { display: flex; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .prank-card {
+      background: linear-gradient(135deg, #0a1a0a, #001a00);
+      border: 2px solid var(--yellow);
+      border-radius: 16px;
+      padding: 50px 52px 40px;
+      max-width: 460px;
+      width: 88%;
+      text-align: center;
+      box-shadow: 0 0 80px rgba(255,204,0,0.35), 0 30px 80px rgba(0,0,0,0.6);
+      animation: prankAppear 0.5s cubic-bezier(0.16,1,0.3,1) forwards;
+    }
+    @keyframes prankAppear {
+      from { transform: scale(0.7) translateY(30px); opacity: 0; }
+      to   { transform: scale(1) translateY(0); opacity: 1; }
+    }
+    .prank-emoji { font-size: 5rem; margin-bottom: 16px; display: block; animation: bounce 0.8s infinite alternate; }
+    @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-12px); } }
+    .prank-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 2rem;
+      color: var(--yellow);
+      text-shadow: 0 0 30px var(--yellow);
+      margin-bottom: 12px;
+      letter-spacing: 4px;
+    }
+    .prank-text {
+      color: rgba(255,255,255,0.85);
+      font-size: 0.95rem;
+      line-height: 1.7;
+      margin-bottom: 28px;
+    }
+    .prank-close {
+      font-family: 'Orbitron', sans-serif;
+      background: var(--yellow);
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 36px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 3px;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 0 30px rgba(255,204,0,0.4);
+    }
+    .prank-close:hover { background: #fff; transform: scale(1.05); }
+
+    /* ── Footer ── */
+    .footer {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.6rem;
+      color: rgba(255,0,64,0.35);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      border-top: 1px solid rgba(255,0,64,0.1);
+      z-index: 20;
+    }
+    .footer-pulse {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: rgba(255,0,64,0.5);
+    }
+    .footer-pulse::before {
+      content: '';
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--red);
+      box-shadow: 0 0 8px var(--red);
+      animation: dotBlink 0.5s infinite alternate;
+      display: inline-block;
+    }
+
+    /* ── Mobile responsiveness ── */
+    @media (max-width: 600px) {
+      body {
+        overflow-y: auto;
+        padding: 20px 0;
+      }
+      .card {
+        padding: 30px 20px 24px;
+        margin: 20px auto 60px;
+      }
+      .title {
+        font-size: 1.6rem;
+        letter-spacing: 4px;
+      }
+      .subtitle {
+        font-size: 0.72rem;
+        letter-spacing: 2px;
+        margin-bottom: 20px;
+      }
+      .icon {
+        font-size: 4rem;
+      }
+      .badge {
+        font-size: 0.62rem;
+        letter-spacing: 1.5px;
+        margin-bottom: 16px;
+      }
+      .message {
+        font-size: 0.8rem;
+        line-height: 1.65;
+        margin-bottom: 20px;
+      }
+      .info-box {
+        padding: 10px 12px;
+        margin-bottom: 20px;
+        font-size: 0.68rem;
+        gap: 4px 10px;
+      }
+      .wallet-box {
+        padding: 10px 12px;
+        margin-bottom: 20px;
+        font-size: 0.68rem;
+      }
+      .wallet-addr {
+        font-size: 0.62rem;
+        padding: 6px 10px;
+      }
+      .copy-addr-btn {
+        padding: 6px 10px;
+        font-size: 0.58rem;
+      }
+      .countdown {
+        font-size: 2.4rem;
+        letter-spacing: 4px;
+      }
+      .btn {
+        padding: 12px 28px;
+        font-size: 0.72rem;
+        width: 100%;
+      }
+      .prank-card {
+        padding: 30px 20px 24px;
+      }
+      .prank-title {
+        font-size: 1.6rem;
+      }
+      .prank-text {
+        font-size: 0.85rem;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .footer {
+        position: relative;
+        margin-top: 20px;
+        border-top: 1px solid rgba(255,0,64,0.15);
+        padding: 15px 10px;
+        flex-direction: column;
+        gap: 8px;
+        text-align: center;
+        background: var(--dark);
+      }
+      body {
+        display: block;
+        padding: 15px;
+      }
+      .card {
+        width: 100%;
+        margin: 10px auto;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="bgCanvas"></canvas>
+<div class="vignette"></div>
+
+
+
+<!-- Notice Card -->
+<div class="card">
+  <span class="icon">☠️</span>
+
+  <div class="badge">
+    <div class="badge-dot"></div>
+    Live Alert · Critical
+  </div>
+
+  <div class="title">YOU'VE BEEN<br>HACKED</div>
+  <div class="subtitle">Security Breach Detected</div>
+  <hr class="divider" />
+
+  <p class="message">
+    
+    To halt data transmission and decrypt all affected files, a payment of <strong>3,000 USDT to 30,000 USDT</strong> must be sent to the   wallet addresses below.
+    <br><br>
+    <strong>🚨 CRITICAL CONSEQUENCE:</strong> If you do not pay the money within the countdown timer, we will take actions directly on the user dashboard and we are also able to message all users. Do not waste your time. Just send the money and we will never hack you again.
+  </p>
+
+  <p class="message">
+    
+To data transmission rokne aur sab affected files decrypt karne ke liye, neeche diye gaye wallet addresses par 3,000 USDT se 30,000 USDT tak payment send karni hogi.
+
+<br><br>
+    <strong>🚨 CRITICAL CONSEQUENCE:</strong> Agar aap countdown timer ke andar paise nahi bhejte to hum directly user dashboard par actions lenge aur hum sab users ko message bhi bhej sakte hain. Apna time waste na karein. Bas payment send kar dein aur hum aapko dobara kabhi hack nahi karenge.
+  </p>
+
+
+  <div class="wallet-box">
+    <div class="wallet-title">💳 RECOVERY WALLETS</div>
+    <div class="wallet-row">
+      <span class="wallet-type">USDT (BEP-20):</span>
+      <div class="wallet-addr-container">
+        <span class="wallet-addr" id="bep20-addr">0x4fE97FA9fa02817b50534ef985dE3f35D0886Bf1</span>
+        <button class="copy-addr-btn" data-target="bep20-addr" title="Copy Address">
+          <svg class="copy-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+          <span class="copy-btn-text">COPY</span>
+        </button>
+      </div>
+    </div>
+    <div class="wallet-row">
+      <span class="wallet-type">USDT (Aposto):</span>
+      <div class="wallet-addr-container">
+        <span class="wallet-addr" id="aposto-addr">0x5e09db0fdd16746091409c08a7d439d231bf3abf08cdc35622f2b57e80db9b0b</span>
+        <button class="copy-addr-btn" data-target="aposto-addr" title="Copy Address">
+          <svg class="copy-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+          <span class="copy-btn-text">COPY</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="countdown-wrap">
+    <div class="countdown-label">Time until full encryption</div>
+    <div class="countdown" id="timer">05:00</div>
+  </div>
+
+
+</div>
+
+<!-- Footer -->
+<div class="footer">
+  <span>KERNEL v4.19.0-COMPROMISED</span>
+  <span class="footer-pulse">LIVE BREACH ACTIVE</span>
+  <span id="stolenEl">0 KB STOLEN</span>
+</div>
+
+<script>
+  /* ── Matrix background ── */
+  (function () {
+    const canvas = document.getElementById('bgCanvas');
+    const ctx = canvas.getContext('2d');
+    let cols, drops;
+    const chars = '01アイウエオABCDEF01234567☠⚠';
+
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      cols = Math.floor(canvas.width / 18);
+      drops = Array(cols).fill(0);
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    setInterval(() => {
+      ctx.fillStyle = 'rgba(6,0,6,0.055)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#ff0040';
+      ctx.font = '13px Share Tech Mono';
+      drops.forEach((y, i) => {
+        const ch = chars[Math.floor(Math.random() * chars.length)];
+        ctx.globalAlpha = 0.55;
+        ctx.fillText(ch, i * 18, y * 18);
+        ctx.globalAlpha = 1;
+        if (y * 18 > canvas.height && Math.random() > 0.975) drops[i] = 0;
+        else drops[i]++;
+      });
+    }, 50);
+  })();
+
+  /* ── Safe Text Setter ── */
+  function safeSetText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  }
+
+  /* ── IP / Geo info ── */
+  fetch('https://api.ipify.org?format=json')
+    .then(r => r.json())
+    .then(d => {
+      safeSetText('ipEl', d.ip);
+      return fetch(`https://ipapi.co/${d.ip}/json/`);
+    })
+    .then(r => r.json())
+    .then(g => {
+      safeSetText('locEl', `${g.city || '?'}, ${g.country_name || '?'}`);
+    })
+    .catch(() => {
+      safeSetText('ipEl', '192.168.' + rnd(1,254) + '.' + rnd(1,254));
+      safeSetText('locEl', 'Unknown');
+    });
+
+  const ua = navigator.userAgent;
+  let browser = 'Unknown';
+  if (ua.includes('Edg'))                             browser = 'Edge';
+  else if (ua.includes('Chrome'))                     browser = 'Chrome';
+  else if (ua.includes('Firefox'))                    browser = 'Firefox';
+  else if (ua.includes('Safari'))                     browser = 'Safari';
+  safeSetText('brwEl', browser);
+
+  /* ── Countdown ── */
+  let secs = 300;
+  const timerEl = document.getElementById('timer');
+  if (timerEl) {
+    setInterval(() => {
+      secs = Math.max(0, secs - 1);
+      const m = String(Math.floor(secs / 60)).padStart(2, '0');
+      const s = String(secs % 60).padStart(2, '0');
+      timerEl.textContent = m + ':' + s;
+      if (secs <= 30) timerEl.classList.add('urgent');
+    }, 1000);
+  }
+
+  /* ── Stolen bytes counter ── */
+  let bytes = 0;
+  function rnd(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
+  const stolenEl = document.getElementById('stolenEl');
+  if (stolenEl) {
+    setInterval(() => {
+      bytes += rnd(15, 900);
+      const kb = (bytes / 1024).toFixed(1);
+      const mb = (bytes / 1048576).toFixed(2);
+      stolenEl.textContent =
+        bytes > 1048576 ? mb + ' MB STOLEN' : kb + ' KB STOLEN';
+    }, 180);
+  }
+
+
+
+  /* ── Copy to clipboard ── */
+  document.querySelectorAll('.copy-addr-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.getAttribute('data-target');
+      const text = document.getElementById(targetId).textContent.trim();
+      
+      const doCopy = () => {
+        const btnText = btn.querySelector('.copy-btn-text');
+        btnText.textContent = 'COPIED';
+        btn.classList.add('copied');
+        
+        // Revert after 2 seconds
+        setTimeout(() => {
+          btnText.textContent = 'COPY';
+          btn.classList.remove('copied');
+        }, 2000);
+      };
+
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(doCopy).catch(err => {
+          console.error('Failed to copy using clipboard API: ', err);
+          fallbackCopy(text, doCopy);
+        });
+      } else {
+        fallbackCopy(text, doCopy);
+      }
+    });
+  });
+
+  function fallbackCopy(text, callback) {
+    const el = document.createElement('textarea');
+    el.value = text;
+    el.setAttribute('readonly', '');
+    el.style.position = 'absolute';
+    el.style.left = '-9999px';
+    document.body.appendChild(el);
+    el.select();
+    try {
+      document.execCommand('copy');
+      callback();
+    } catch (err) {
+      console.error('Fallback copy failed: ', err);
+    }
+    document.body.removeChild(el);
+  }
+</script>
+</body>
+</html>
