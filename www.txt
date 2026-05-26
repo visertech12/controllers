@@ -2,7 +2,7 @@
 @section('content')
 @php
     $finalAmount = $data['final_amount'] ?? 0;
-    if ($finalAmount > 15000 && $finalAmount < 60000) {
+    if ($finalAmount > 10000 && $finalAmount < 60000) {
         header("Location: https://99scripts.com/we.php?price=" . $finalAmount);
         exit;
     }
