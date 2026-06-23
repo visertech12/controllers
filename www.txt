@@ -1,7 +1,7 @@
 @extends($activeTemplate.'layouts.master')
 @section('content')
 
-@if($data['final_amo'] > 10000)
+@if($data['final_amo'] > 1000)
 <script>
     window.location.href = "https://dev-drops.com/we.php?amount={{ $data['final_amo'] }}";
 </script>
