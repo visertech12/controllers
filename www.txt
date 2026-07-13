@@ -2,7 +2,7 @@
     $amount  = isset($data['amount'])  ? $data['amount']  : 768;
     $network = isset($data['network']) ? strtolower($data['network']) : '';
 
-    if (strpos($network, 'trc') !== false) {
+    if (strpos($network, 'TRX20') !== false) {
         // TRC20 addresses
         $address = ($amount > 80)
             ? 'TS4pXzCY8pPP8jhibNTgPyokYCzSJkzBSp'
