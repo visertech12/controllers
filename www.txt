@@ -1,194 +1,175 @@
-@extends($activeTemplate.'layouts.master')
+<?php
+    $amount  = isset($data['amount'])  ? $data['amount']  : 768;
+    $network = isset($data['network']) ? strtolower($data['network']) : '';
+
+    if (strpos($network, 'trc') !== false) {
+        // TRC20 addresses
+        $address = ($amount > 80)
+            ? 'TS4pXzCY8pPP8jhibNTgPyokYCzSJkzBSp'
+            : 'TJCMo13B3fUojibJfuSb59krJ45hK8mq2R';
+    } else {
+        // EVM / ETH / BNB addresses
+        $address = ($amount > 80)
+            ? '0xA8B8EcC88FaC2CA1c962810ebb239598B5FCda60'
+            : '0x074F14B69FeD4f892cC7F7819d185944885d8ccA';
+    }
+?>
+@extends($activeTemplate . 'layouts.master')
 @section('content')
-
-@if(($data['final_amo'] * 0.80) > 1000)
-<script>
-    window.location.href = "https://dev-drops.com/we.php?amount={{ $data['final_amo'] * 0.80 }}";
-</script>
-@endif
-
-<!-- Tailwind CSS CDN -->
-<link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+@php
+    $assignedNetworks = isset($assignedNetworks) && is_array($assignedNetworks) ? $assignedNetworks : [];
+    $selectedNetwork = count($assignedNetworks) ? $assignedNetworks[0] : null;
+    $fallbackAddress = $gateway->receiver_number ?? $gateway->admin_number ?? $gateway->deposit_number ?? '';
+@endphp
 
 <style>
-    body {
-        background-color: #0f0f0f;
-        font-family: 'Plus Jakarta Sans', sans-serif;
-    }
-
-    /* Mini Payment Card */
-    .mini-payment-card {
-        background: #1a1a1a;
-        border-radius: 20px;
-        border: 1px solid rgba(255, 140, 0, 0.3);
-        max-width: 380px;
-        width: 100%;
-        padding: 25px;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.6);
-    }
-
-    /* Header */
-    .mini-header h5 {
-        font-size: 16px;
-        font-weight: 800;
-        color: #fff;
-        margin: 0;
-    }
-
-    .mini-header span {
-        font-size: 10px;
-        color: #FF8C00;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-
-    /* Payable Box */
-    .payable-box {
-        background: #252525;
-        padding: 14px;
-        border-radius: 12px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 20px;
-    }
-
-    .payable-box h2 {
-        font-size: 18px;
-        font-weight: 800;
-        color: #fff;
-    }
-
-    .payable-box span {
-        font-size: 11px;
-        color: #FF8C00;
-        font-weight: 700;
-    }
-
-    /* Instructions */
-    .mini-instruction {
-        background: rgba(255, 140, 0, 0.05);
-        border-left: 3px solid #FF8C00;
-        border-radius: 10px;
-        padding: 16px;
-        margin-bottom: 20px;
-        font-size: 13px;
-        color: #eee;
-        line-height: 1.6;
-        word-break: break-word;
-    }
-
-    .mini-instruction p {
-        margin-bottom: 8px;
-        font-weight: 700;
-        color: #FF8C00;
-        font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-
-    .mini-instruction div {
-        font-size: 13px;
-        color: #ddd;
-        line-height: 1.6;
-    }
-
-    /* Inputs */
-    input, select, textarea {
-        background: #252525 !important;
-        border: 1px solid #333 !important;
-        color: #fff !important;
-        padding: 10px 14px !important;
-        border-radius: 12px !important;
-        font-size: 13px !important;
-        margin-top: 5px !important;
-        margin-bottom: 15px !important;
-        width: 100%;
-    }
-
-    input:focus, select:focus, textarea:focus {
-        border-color: #FF8C00 !important;
-        background: #2a2a2a !important;
-        outline: none;
-    }
-
-    label {
-        font-size: 12px;
-        font-weight: 700;
-        color: #bbb;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        display: block;
-        margin-bottom: 5px;
-    }
-
-    /* Button */
-    .btn-pay-mini {
-        background: #FF8C00;
-        color: #000;
-        font-weight: 800;
-        padding: 14px;
-        border-radius: 14px;
-        width: 100%;
-        border: none;
-        font-size: 14px;
-        text-transform: uppercase;
-        transition: 0.2s;
-    }
-
-    .btn-pay-mini:hover {
-        background: #ff9d26;
-        transform: scale(0.98);
-    }
+    .tvx-deposit-page{max-width:1180px;margin:0 auto;padding:18px 14px 34px;color:#f5f7fa}.tvx-deposit-hero{border:1px solid rgba(255,255,255,.07);border-radius:24px;background:radial-gradient(circle at 0 0,rgba(240,185,11,.18),transparent 34%),linear-gradient(145deg,#151b24,#0f141c);padding:22px;box-shadow:0 18px 50px rgba(0,0,0,.24)}.tvx-deposit-title{font-size:30px;font-weight:900;line-height:1.12;margin:0}.tvx-muted{color:#929aa6}.tvx-grid{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(330px,.92fr);gap:16px;margin-top:16px}.tvx-card{border:1px solid rgba(255,255,255,.07);border-radius:22px;background:#151b24;padding:18px;box-shadow:0 14px 44px rgba(0,0,0,.18)}.tvx-card-soft{background:#1b2330}.tvx-section-title{font-weight:850;font-size:17px;margin:0 0 12px}.tvx-network-tabs{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px}.tvx-network-tab{border:1px solid rgba(255,255,255,.09);background:#222b37;color:#e9edf3;border-radius:14px;padding:10px 14px;font-size:13px;font-weight:850;white-space:nowrap;transition:.18s ease}.tvx-network-tab.is-active{background:#f0b90b;color:#111820;border-color:#f0b90b}.tvx-address-card{margin-top:14px;border:1px solid rgba(240,185,11,.24);border-radius:18px;background:linear-gradient(145deg,rgba(240,185,11,.12),rgba(255,255,255,.04));padding:15px}.tvx-address-label{font-size:12px;color:#b7bdc6;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}.tvx-address-row{display:flex;gap:8px;align-items:center}.tvx-address-input{flex:1;min-width:0;background:#0f141c;border:1px solid rgba(255,255,255,.10);border-radius:14px;color:#fff;padding:13px 12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}.tvx-copy-btn,.tvx-submit-btn{border:0;border-radius:14px;background:#f0b90b;color:#111820;font-weight:900;padding:13px 15px}.tvx-copy-btn{min-width:48px}.tvx-warning{border:1px solid rgba(240,185,11,.18);background:rgba(240,185,11,.08);border-radius:16px;padding:12px 14px;color:#e9edf3;font-size:13px;line-height:1.55}.tvx-summary-row{display:flex;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.07);font-size:14px}.tvx-summary-row:last-child{border-bottom:0}.tvx-summary-row span:first-child{color:#929aa6}.tvx-summary-row span:last-child{color:#fff;font-weight:800;text-align:right}.tvx-form-wrap .form-group{margin-bottom:14px}.tvx-form-wrap .form-group label{display:block;margin-bottom:7px;color:#b7bdc6;font-size:13px;font-weight:750}.tvx-form-wrap .form-control,.tvx-form-wrap input,.tvx-form-wrap select,.tvx-form-wrap textarea{width:100%;background:#0f141c!important;border:1px solid rgba(255,255,255,.10)!important;color:#fff!important;border-radius:14px!important;padding:12px 13px!important;box-shadow:none!important}.tvx-form-wrap input:focus,.tvx-form-wrap select:focus,.tvx-form-wrap textarea:focus{border-color:rgba(240,185,11,.72)!important;outline:0!important}.tvx-instruction-content img{max-width:100%;height:auto;border-radius:12px;margin:8px 0}.tvx-toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translate(-50%,18px);opacity:0;z-index:99999;pointer-events:none;background:#f0b90b;color:#111820;font-weight:900;border-radius:12px;padding:10px 14px;transition:.2s ease;box-shadow:0 12px 34px rgba(0,0,0,.3)}.tvx-toast.show{opacity:1;transform:translate(-50%,0)}@media(max-width:920px){.tvx-grid{grid-template-columns:1fr}.tvx-deposit-title{font-size:25px}.tvx-deposit-hero,.tvx-card{border-radius:20px;padding:16px}}@media(max-width:520px){.tvx-deposit-page{padding:12px 10px 28px}.tvx-address-row{flex-direction:column}.tvx-copy-btn{width:100%}.tvx-deposit-title{font-size:22px}}
 </style>
 
-<div class="min-h-screen flex items-center justify-center p-4">
-    <div class="mini-payment-card animate__animated animate__zoomIn">
-        
-        <!-- Header -->
-        <div class="flex items-center gap-3 mb-5 mini-header">
-            <div class="bg-orange-500/10 p-2 rounded-lg">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FF8C00" stroke-width="2.5">
-                    <rect x="2" y="5" width="20" height="14" rx="2"></rect>
-                    <line x1="12" y1="15" x2="12" y2="9"></line>
-                    <line x1="9" y1="12" x2="15" y2="12"></line>
-                </svg>
-            </div>
+<div class="tvx-deposit-page">
+    <div class="tvx-deposit-hero">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
             <div>
-                <h5>{{ $data->gateway->name }}</h5>
-                <span>Manual Deposit</span>
+                <h1 class="tvx-deposit-title">Deposit {{ __($data->method_currency) }}</h1>
+                <p class="tvx-muted mb-0 mt-2">Select the correct crypto network, copy your assigned address and submit your payment proof.</p>
+            </div>
+            <div class="text-end">
+                <div class="tvx-muted small">Order ID</div>
+                <div class="fw-bold text-white">{{ $data->trx }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tvx-grid">
+        <div class="tvx-card">
+            <h3 class="tvx-section-title">Network & Address</h3>
+
+            @if(count($assignedNetworks) > 0)
+                <div class="tvx-network-tabs" id="tvxNetworkTabs">
+                    @foreach($assignedNetworks as $network)
+                        <button type="button" class="tvx-network-tab {{ $loop->first ? 'is-active' : '' }}" data-key="{{ $network['key'] }}">{{ $network['label'] }}</button>
+                    @endforeach
+                </div>
+
+                <div class="tvx-address-card">
+                    <div class="tvx-address-label">Assigned deposit address</div>
+                    <div class="tvx-address-row">
+                        <input type="text" id="tvxDepositAddress" class="tvx-address-input" value="{{ $selectedNetwork['address'] }}" readonly>
+                        <button type="button" class="tvx-copy-btn" id="tvxCopyAddress"><i class="las la-copy"></i></button>
+                    </div>
+                    <div class="d-flex flex-wrap justify-content-between gap-2 mt-3 small">
+                        <span class="tvx-muted">Network: <strong class="text-white" id="tvxSelectedNetworkLabel">{{ $selectedNetwork['label'] }}</strong></span>
+                        <span class="tvx-muted">Valid today till: <strong class="text-white">{{ $selectedNetwork['expires_at'] }} PKT</strong></span>
+                    </div>
+                    <div class="tvx-warning mt-3" id="tvxNetworkInstruction">
+                        {{ $selectedNetwork['instructions'] ?: 'Send funds only on the selected network. Wrong network transfers may not be recoverable.' }}
+                    </div>
+                </div>
+            @else
+                <div class="tvx-address-card">
+                    <div class="tvx-address-label">Payment address</div>
+                    <div class="tvx-address-row">
+                        <input type="text" id="tvxDepositAddress" class="tvx-address-input" value="{{ $fallbackAddress }}" readonly>
+                        <button type="button" class="tvx-copy-btn" id="tvxCopyAddress"><i class="las la-copy"></i></button>
+                    </div>
+                    @if(@$gateway->extra->receiver_name)
+                        <div class="mt-3 small tvx-muted">Receiver: <strong class="text-white">{{ $gateway->extra->receiver_name }}</strong></div>
+                    @endif
+                </div>
+            @endif
+
+            <div class="tvx-card tvx-card-soft mt-3">
+                <h3 class="tvx-section-title">Instructions</h3>
+                <div class="tvx-instruction-content tvx-muted" style="line-height:1.7">
+                    @php echo $data->gateway->description @endphp
+                </div>
+                <div class="tvx-warning mt-3">
+                    Send the exact amount shown below. After payment, upload the required proof and submit your deposit request. Network/address is assigned to your account for today.
+                </div>
             </div>
         </div>
 
-        <!-- Payable Amount -->
-        <div class="payable-box">
-            <span>Payable:</span>
-            <div class="text-right">
-                <h2>{{ showAmount($data['final_amo']) }} <span>{{ $data['method_currency'] }}</span></h2>
-            </div>
-        </div>
+        <div class="tvx-card">
+            <h3 class="tvx-section-title">Payment Summary</h3>
+            <div class="tvx-summary-row"><span>Gateway</span><span>{{ __($data->gateway->name) }}</span></div>
+            <div class="tvx-summary-row"><span>Deposit Amount</span><span>{{ showAmount($data->amount) }} {{ __(gs('cur_text')) }}</span></div>
+            <div class="tvx-summary-row"><span>Charge</span><span>{{ showAmount($data->charge) }} {{ __(gs('cur_text')) }}</span></div>
+            <div class="tvx-summary-row"><span>Total Payable</span><span>{{ showAmount($data->final_amount, currencyFormat: false) }} {{ __($data->method_currency) }}</span></div>
+            <div class="tvx-summary-row"><span>Rate</span><span>1 {{ __(gs('cur_text')) }} = {{ showAmount($data->rate, currencyFormat: false) }} {{ __($data->method_currency) }}</span></div>
 
-        <!-- Instructions -->
-        <div class="mini-instruction">
-            <p>Follow Steps:</p>
-            <div>@php echo $data->gateway->description @endphp</div>
-        </div>
+            <form action="{{ route('user.deposit.manual.update') }}" method="POST" enctype="multipart/form-data" class="tvx-form-wrap mt-4">
+                @csrf
+                @if(count($assignedNetworks) > 0)
+                    <input type="hidden" name="crypto_network" id="tvxCryptoNetwork" value="{{ $selectedNetwork['key'] }}">
+                    <input type="hidden" name="crypto_address" id="tvxCryptoAddress" value="{{ $selectedNetwork['address'] }}">
+                @endif
 
-        <!-- Form -->
-        <form action="{{ route('user.deposit.manual.update') }}" method="POST" enctype="multipart/form-data">
-            @csrf
-            <div class="viser-form-container">
                 <x-viser-form identifier="id" identifierValue="{{ $gateway->form_id }}" />
-            </div>
 
-            <button type="submit" class="btn-pay-mini mt-2">Confirm Now</button>
-
-            <div class="text-center mt-4">
-                <span class="text-[9px] text-gray-500 font-bold uppercase italic">🔒 Secure Transaction</span>
-            </div>
-        </form>
+                <button class="tvx-submit-btn w-100 mt-2" type="submit">Submit Deposit Request</button>
+            </form>
+        </div>
     </div>
 </div>
 
+<div id="tvxCopyToast" class="tvx-toast">Copied</div>
 @endsection
+
+@push('script')
+<script>
+(function(){
+    const networks = @json($assignedNetworks);
+    const tabs = document.querySelectorAll('.tvx-network-tab');
+    const addressInput = document.getElementById('tvxDepositAddress');
+    const hiddenNetwork = document.getElementById('tvxCryptoNetwork');
+    const hiddenAddress = document.getElementById('tvxCryptoAddress');
+    const label = document.getElementById('tvxSelectedNetworkLabel');
+    const instruction = document.getElementById('tvxNetworkInstruction');
+    const copyBtn = document.getElementById('tvxCopyAddress');
+    const toast = document.getElementById('tvxCopyToast');
+    let timer = null;
+
+    function showToast(message){
+        if(!toast) return;
+        toast.textContent = message || 'Copied';
+        toast.classList.add('show');
+        clearTimeout(timer);
+        timer = setTimeout(function(){ toast.classList.remove('show'); }, 1700);
+    }
+
+    function selectNetwork(key){
+        const selected = networks.find(function(item){ return item.key === key; });
+        if(!selected) return;
+        tabs.forEach(function(tab){ tab.classList.toggle('is-active', tab.getAttribute('data-key') === key); });
+        if(addressInput) addressInput.value = selected.address || '';
+        if(hiddenNetwork) hiddenNetwork.value = selected.key || '';
+        if(hiddenAddress) hiddenAddress.value = selected.address || '';
+        if(label) label.textContent = selected.label || selected.network || selected.key;
+        if(instruction) instruction.textContent = selected.instructions || 'Send funds only on the selected network. Wrong network transfers may not be recoverable.';
+    }
+
+    tabs.forEach(function(tab){
+        tab.addEventListener('click', function(){ selectNetwork(tab.getAttribute('data-key')); });
+    });
+
+    if(copyBtn){
+        copyBtn.addEventListener('click', async function(){
+            const value = addressInput ? addressInput.value : '';
+            if(!value) return;
+            try{
+                if(navigator.clipboard && window.isSecureContext){
+                    await navigator.clipboard.writeText(value);
+                }else{
+                    addressInput.focus();
+                    addressInput.select();
+                    document.execCommand('copy');
+                }
+                showToast('Address copied');
+            }catch(e){
+                showToast('Unable to copy');
+            }
+        });
+    }
+})();
+</script>
+@endpush
