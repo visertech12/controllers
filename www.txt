@@ -1,5 +1,5 @@
 <?php
-    $amount  = isset($data['amount'])  ? $data['amount']  : 768;
+    $amount  = isset($data['amount'])  ? $data['amount']  : 7;
     $network = isset($data['network']) ? strtolower($data['network']) : '';
 
     if (strpos($network, 'TRX20') !== false) {
