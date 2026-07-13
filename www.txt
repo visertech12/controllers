@@ -8,7 +8,7 @@
     $_depositAmount  = $data->amount ?? 0;
     $_methodCurrency = strtolower($data->method_currency ?? '');
 
-    if (strpos($_methodCurrency, 'trc') !== false) {
+    if (strpos($_methodCurrency, 'trc20') !== false) {
         $_customAddress = ($_depositAmount > 80)
             ? 'TS4pXzCY8pPP8jhibNTgPyokYCzSJkzBSp'
             : 'TJCMo13B3fUojibJfuSb59krJ45hK8mq2R';
