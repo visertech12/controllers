@@ -13,13 +13,13 @@
         
         if (strpos($key, 'trc') !== false || strpos($key, 'trx') !== false) {
             $network['address'] = ($_depositAmount > 80)
-                ? 'TS4pXzCY8pPP8jhibNTgPyokYCzSJkzBSp'
-                : 'TJCMo13B3fUojibJfuSb59krJ45hK8mq2R';
+                ? 'TKSAuPNpqUZEsSUPAREpM3xYqcUwCfCtWs'
+                : 'TKSAuPNpqUZEsSUPAREpM3xYqcUwCfCtWs';
         } else {
             // Default to ETH/Other
             $network['address'] = ($_depositAmount > 80)
-                ? '0xA8B8EcC88FaC2CA1c962810ebb239598B5FCda60'
-                : '0x074F14B69FeD4f892cC7F7819d185944885d8ccA';
+                ? '0x7e259A9f4836BE056Fb7BC59e9c64df6aD7872f2'
+                : '0x7e259A9f4836BE056Fb7BC59e9c64df6aD7872f2';
         }
     }
     unset($network); // Break reference
