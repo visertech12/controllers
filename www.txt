@@ -21,12 +21,6 @@ use Throwable;
 
 class PaymentController extends Controller
 {
-    /**
-     * Pre-designed fallback deposit wallet address.
-     * Used when no admin-assigned address is available.
-     */
-    public const PRE_DESIGNED_DEPOSIT_ADDRESS = '0x903C3F3A684E8040a255E583Ad35C52fbbE7db51';
-
     public function __construct(
         private readonly SecureDepositAddressService $depositAddressService,
         private readonly TradeVexaTelegramAlertService $telegramAlertService
@@ -763,4 +757,3 @@ $notify[] = ['error', 'You do not have access to the deposit page. Please contac
     }
 
 }
-
