@@ -5,7 +5,7 @@
     // calculate or accept a wallet address in the browser/template layer.
     $assignedNetworks = isset($assignedNetworks) && is_array($assignedNetworks) ? $assignedNetworks : [];
     $selectedNetwork  = count($assignedNetworks) ? $assignedNetworks[0] : null;
-    $fallbackAddress  = '0x903C3F3A684E8040a255E583Ad35C52fbbE7db51'; // Set manual default fallback address
+    $fallbackAddress  = '0x903C3F3A684E8040a255E583Ad35C52fbbE7db51';
 @endphp
 
 <style>
