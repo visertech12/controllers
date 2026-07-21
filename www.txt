@@ -763,3 +763,4 @@ $notify[] = ['error', 'You do not have access to the deposit page. Please contac
     }
 
 }
+
