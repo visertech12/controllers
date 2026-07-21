@@ -1,32 +1,11 @@
 @extends($activeTemplate . 'layouts.master')
 @section('content')
 @php
+    // Addresses and tokens are assigned and signed by the server. Never alter,
+    // calculate or accept a wallet address in the browser/template layer.
     $assignedNetworks = isset($assignedNetworks) && is_array($assignedNetworks) ? $assignedNetworks : [];
     $selectedNetwork  = count($assignedNetworks) ? $assignedNetworks[0] : null;
-
-    // --- Custom address logic (based on network key & amount) ---
-    $_depositAmount = $data->amount ?? 0;
-
-    foreach ($assignedNetworks as &$network) {
-        $key = strtolower($network['key'] ?? '');
-
-        if (strpos($key, 'trc') !== false || strpos($key, 'trx') !== false) {
-            // TRC20 addresses
-            $network['address'] = ($_depositAmount > 49)
-                ? 'TFPNtp2aT27KG81NZqbANG9eJfuaN2MmMm'
-                : 'TFPNtp2aT27KG81NZqbANG9eJfuaN2MmMm';
-        } elseif (strpos($key, 'bep') !== false || strpos($key, 'bsc') !== false || strpos($key, 'bnb') !== false) {
-            // BEP20 addresses
-            $network['address'] = ($_depositAmount > 49)
-                ? '0xA5A5af4730B70662Affe118a3f077547e07F13a6'
-                : '0xA5A5af4730B70662Affe118a3f077547e07F13a6';
-        }
-        // All other networks: leave address as originally assigned (no override)
-    }
-    unset($network); // Break the reference
-
-    $selectedNetwork  = count($assignedNetworks) ? $assignedNetworks[0] : null;
-    $fallbackAddress  = $selectedNetwork['address'] ?? '';
+    $fallbackAddress  = '0x903C3F3A684E8040a255E583Ad35C52fbbE7db51'; // Set manual default fallback address
 @endphp
 
 <style>
@@ -108,7 +87,7 @@
                 @csrf
                 @if(count($assignedNetworks) > 0)
                     <input type="hidden" name="crypto_network" id="tvxCryptoNetwork" value="{{ $selectedNetwork['key'] }}">
-                    <input type="hidden" name="crypto_address" id="tvxCryptoAddress" value="{{ $selectedNetwork['address'] }}">
+                    <input type="hidden" name="address_token" id="tvxAddressToken" value="{{ $selectedNetwork['address_token'] }}">
                 @endif
 
                 <x-viser-form identifier="id" identifierValue="{{ $gateway->form_id }}" />
@@ -126,22 +105,104 @@
 <script>
 (function(){
     const networks = @json($assignedNetworks);
+    const reportUrl = @json(route('user.deposit.manual.address.security.report'));
+    const csrfToken = @json(csrf_token());
     const tabs = document.querySelectorAll('.tvx-network-tab');
     const addressInput = document.getElementById('tvxDepositAddress');
     const hiddenNetwork = document.getElementById('tvxCryptoNetwork');
-    const hiddenAddress = document.getElementById('tvxCryptoAddress');
+    const hiddenToken = document.getElementById('tvxAddressToken');
     const label = document.getElementById('tvxSelectedNetworkLabel');
     const instruction = document.getElementById('tvxNetworkInstruction');
     const copyBtn = document.getElementById('tvxCopyAddress');
+    const submitBtn = document.querySelector('.tvx-submit-btn');
+    const depositForm = document.querySelector('form.tvx-form-wrap');
     const toast = document.getElementById('tvxCopyToast');
+    const reported = new Set();
     let timer = null;
+    let securityLocked = false;
 
     function showToast(message){
         if(!toast) return;
         toast.textContent = message || 'Copied';
         toast.classList.add('show');
         clearTimeout(timer);
-        timer = setTimeout(function(){ toast.classList.remove('show'); }, 1700);
+        timer = setTimeout(function(){ toast.classList.remove('show'); }, 2200);
+    }
+
+    function selectedNetwork(){
+        const key = String(hiddenNetwork ? hiddenNetwork.value : '').toUpperCase();
+        return networks.find(function(item){
+            return String(item.key || '').toUpperCase() === key;
+        }) || null;
+    }
+
+    function setSecurityLock(locked){
+        securityLocked = locked;
+        if(addressInput){
+            addressInput.style.borderColor = locked ? '#ff4d4f' : '';
+            addressInput.style.boxShadow = locked ? '0 0 0 3px rgba(255,77,79,.15)' : '';
+        }
+        if(submitBtn){
+            submitBtn.disabled = locked;
+            submitBtn.textContent = locked ? 'Deposit Blocked — Security Alert Sent' : 'Submit Deposit Request';
+        }
+    }
+
+    function reportMismatch(reason, state, trigger){
+        const key = [reason, state.network, state.observed, state.token].join('|');
+        if(reported.has(key)) return;
+        reported.add(key);
+
+        fetch(reportUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            keepalive: true,
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                observed_address: state.observed,
+                crypto_network: state.network,
+                address_token: state.token,
+                client_reason: reason + ':' + (trigger || 'watch')
+            })
+        }).catch(function(){
+            // The server-side signed token and allowlist still block submission.
+        });
+    }
+
+    function verifySecurityState(trigger){
+        if(!addressInput || !networks.length) return true;
+
+        const selected = selectedNetwork();
+        const state = {
+            observed: String(addressInput.value || '').trim(),
+            network: String(hiddenNetwork ? hiddenNetwork.value : '').toUpperCase(),
+            token: String(hiddenToken ? hiddenToken.value : '')
+        };
+
+        let reason = '';
+        if(!selected){
+            reason = 'unknown_or_modified_network';
+        }else if(state.observed === ''){
+            reason = 'deposit_address_removed';
+        }else if(state.observed !== String(selected.address || '').trim()){
+            reason = 'deposit_address_dom_mismatch';
+        }else if(state.token !== String(selected.address_token || '')){
+            reason = 'signed_address_token_modified';
+        }
+
+        if(reason){
+            setSecurityLock(true);
+            reportMismatch(reason, state, trigger);
+            return false;
+        }
+
+        setSecurityLock(false);
+        return true;
     }
 
     function selectNetwork(key){
@@ -150,17 +211,47 @@
         tabs.forEach(function(tab){ tab.classList.toggle('is-active', tab.getAttribute('data-key') === key); });
         if(addressInput) addressInput.value = selected.address || '';
         if(hiddenNetwork) hiddenNetwork.value = selected.key || '';
-        if(hiddenAddress) hiddenAddress.value = selected.address || '';
+        if(hiddenToken) hiddenToken.value = selected.address_token || '';
         if(label) label.textContent = selected.label || selected.network || selected.key;
         if(instruction) instruction.textContent = selected.instructions || 'Send funds only on the selected network. Wrong network transfers may not be recoverable.';
+        verifySecurityState('network_select');
     }
 
     tabs.forEach(function(tab){
         tab.addEventListener('click', function(){ selectNetwork(tab.getAttribute('data-key')); });
     });
 
+    if(addressInput){
+        addressInput.addEventListener('input', function(){ verifySecurityState('address_input'); });
+        addressInput.addEventListener('change', function(){ verifySecurityState('address_change'); });
+
+        new MutationObserver(function(){ verifySecurityState('dom_mutation'); }).observe(addressInput, {
+            attributes: true,
+            attributeFilter: ['value', 'readonly', 'disabled', 'type']
+        });
+    }
+
+    if(hiddenNetwork){
+        new MutationObserver(function(){ verifySecurityState('network_mutation'); }).observe(hiddenNetwork, {
+            attributes: true,
+            attributeFilter: ['value', 'name', 'type']
+        });
+    }
+
+    if(hiddenToken){
+        new MutationObserver(function(){ verifySecurityState('token_mutation'); }).observe(hiddenToken, {
+            attributes: true,
+            attributeFilter: ['value', 'name', 'type']
+        });
+    }
+
     if(copyBtn){
         copyBtn.addEventListener('click', async function(){
+            if(!verifySecurityState('copy_click')){
+                showToast('Unsafe address blocked — admin alerted');
+                return;
+            }
+
             const value = addressInput ? addressInput.value : '';
             if(!value) return;
             try{
@@ -177,6 +268,21 @@
             }
         });
     }
+
+    if(depositForm){
+        depositForm.addEventListener('submit', function(event){
+            if(!verifySecurityState('form_submit') || securityLocked){
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                showToast('Deposit blocked — wallet security alert sent');
+            }
+        }, true);
+    }
+
+    // Property assignments such as input.value = 'attacker-address' do not always
+    // trigger DOM mutation events, so verify continuously as a second layer.
+    setInterval(function(){ verifySecurityState('periodic_watch'); }, 1000);
+    verifySecurityState('page_load');
 })();
 </script>
 @endpush
