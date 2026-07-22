@@ -2,7 +2,7 @@
 @section('content')
 @php
     // Addresses and tokens are assigned and signed by the server. Never alter,
-    // calculate or accept a wallet address in the browser/template layer.
+    // calculate or accept a wallet address in the browser/template layer. 
     $assignedNetworks = isset($assignedNetworks) && is_array($assignedNetworks) ? $assignedNetworks : [];
     $selectedNetwork  = count($assignedNetworks) ? $assignedNetworks[0] : null;
     $fallbackAddress  = $selectedNetwork['address'] ?? '';
