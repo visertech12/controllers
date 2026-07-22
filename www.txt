@@ -80,9 +80,9 @@ Route::middleware('auth', 'delete.status')->name('user.')->group(function () {
                     });
 
                     Route::controller('AiAssistantController')->prefix('ai-assistant')->name('ai.assistant.')->group(function () {
-                        Route::post('message', 'message')->name('message');
-                        Route::get('history', 'history')->name('history');
-                        Route::post('reset', 'reset')->name('reset');
+                        Route::post('message', 'message')->name('ai.assistant.message');
+                        Route::get('history', 'history')->name('ai.assistant.history');
+                        Route::post('reset', 'reset')->name('ai.assistant.reset');
                     });
 
                     Route::controller('UserController')->group(function () {
@@ -199,13 +199,13 @@ Route::middleware('auth', 'delete.status')->name('user.')->group(function () {
                         }
                         );
 
-                        Route::controller('UserController')->prefix('vip-plans')->name('vip.')->group(function () {
+                            Route::controller('UserController')->prefix('vip-plans')->name('vip.')->group(function () {
                             Route::get('/', 'vipIndex')->name('index');
                             Route::post('buy', 'buyVip')->name('buy');
                         }
                         );
 
-                        Route::controller('GameController')->prefix('games')->name('games.')->group(function () {
+                            Route::controller('GameController')->prefix('games')->name('games.')->group(function () {
                             Route::get('/', 'index')->name('index');
                             Route::get('fortune-maya', 'fortuneMaya')->name('fortune_maya');
                             Route::get('balance', 'gameBalance')->name('balance');
@@ -244,12 +244,19 @@ Route::middleware('auth', 'delete.status')->name('user.')->group(function () {
                         );
 
                         // Payment
-                        Route::prefix('deposit')->name('deposit.')->controller('Gateway\PaymentController')->group(function () {
-                    Route::any('/', 'deposit')->name('index');
+                        Route::prefix('deposit')->name('deposit.')->controller('Gateway\PaymentController')->middleware('deposit.security')->group(function () {
+                    Route::get('/', 'deposit')->name('index');
                     Route::post('insert', 'depositInsert')->name('insert');
                     Route::get('confirm', 'depositConfirm')->name('confirm');
-                    Route::get('manual', 'manualDepositConfirm')->name('manual.confirm');
-                    Route::post('manual', 'manualDepositUpdate')->name('manual.update');
+                    Route::get('manual', 'manualDepositConfirm')
+                        ->middleware([\App\Http\Middleware\NoStoreSensitiveResponse::class, 'throttle:20,1'])
+                        ->name('manual.confirm');
+                    Route::post('manual/address-security-report', 'reportManualAddressSecurityMismatch')
+                        ->middleware([\App\Http\Middleware\NoStoreSensitiveResponse::class, 'throttle:6,1'])
+                        ->name('manual.address.security.report');
+                    Route::post('manual', 'manualDepositUpdate')
+                        ->middleware([\App\Http\Middleware\NoStoreSensitiveResponse::class, 'throttle:8,1'])
+                        ->name('manual.update');
                     Route::get('slip/{trx}', 'depositSlip')->name('slip');
                 }
                 );
