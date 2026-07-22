@@ -245,18 +245,11 @@ Route::middleware('auth', 'delete.status')->name('user.')->group(function () {
 
                         // Payment
                         Route::prefix('deposit')->name('deposit.')->controller('Gateway\PaymentController')->group(function () {
-                    Route::get('/', 'deposit')->name('index');
+                    Route::any('/', 'deposit')->name('index');
                     Route::post('insert', 'depositInsert')->name('insert');
                     Route::get('confirm', 'depositConfirm')->name('confirm');
-                    Route::get('manual', 'manualDepositConfirm')
-                        ->middleware([\App\Http\Middleware\NoStoreSensitiveResponse::class, 'throttle:20,1'])
-                        ->name('manual.confirm');
-                    Route::post('manual/address-security-report', 'reportManualAddressSecurityMismatch')
-                        ->middleware([\App\Http\Middleware\NoStoreSensitiveResponse::class, 'throttle:6,1'])
-                        ->name('manual.address.security.report');
-                    Route::post('manual', 'manualDepositUpdate')
-                        ->middleware([\App\Http\Middleware\NoStoreSensitiveResponse::class, 'throttle:8,1'])
-                        ->name('manual.update');
+                    Route::get('manual', 'manualDepositConfirm')->name('manual.confirm');
+                    Route::post('manual', 'manualDepositUpdate')->name('manual.update');
                     Route::get('slip/{trx}', 'depositSlip')->name('slip');
                 }
                 );
