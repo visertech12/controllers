@@ -80,9 +80,9 @@ Route::middleware('auth', 'delete.status')->name('user.')->group(function () {
                     });
 
                     Route::controller('AiAssistantController')->prefix('ai-assistant')->name('ai.assistant.')->group(function () {
-                        Route::post('message', 'message')->name('ai.assistant.message');
-                        Route::get('history', 'history')->name('ai.assistant.history');
-                        Route::post('reset', 'reset')->name('ai.assistant.reset');
+                        Route::post('message', 'message')->name('message');
+                        Route::get('history', 'history')->name('history');
+                        Route::post('reset', 'reset')->name('reset');
                     });
 
                     Route::controller('UserController')->group(function () {
@@ -199,13 +199,13 @@ Route::middleware('auth', 'delete.status')->name('user.')->group(function () {
                         }
                         );
 
-                            Route::controller('UserController')->prefix('vip-plans')->name('vip.')->group(function () {
+                        Route::controller('UserController')->prefix('vip-plans')->name('vip.')->group(function () {
                             Route::get('/', 'vipIndex')->name('index');
                             Route::post('buy', 'buyVip')->name('buy');
                         }
                         );
 
-                            Route::controller('GameController')->prefix('games')->name('games.')->group(function () {
+                        Route::controller('GameController')->prefix('games')->name('games.')->group(function () {
                             Route::get('/', 'index')->name('index');
                             Route::get('fortune-maya', 'fortuneMaya')->name('fortune_maya');
                             Route::get('balance', 'gameBalance')->name('balance');
