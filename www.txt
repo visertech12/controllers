@@ -1,264 +1,48 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
+namespace App\Http\Middleware;
 
-Route::
-namespace ('User\Auth')->name('user.')->middleware('guest')->group(function () {
-    Route::controller('LoginController')->group(function () {
-            Route::get('/login', 'showLoginForm')->name('login');
-            Route::post('/login', 'login');
-            Route::get('logout', 'logout')->middleware('auth')->withoutMiddleware('guest')->name('logout');
+use App\Support\DepositSecurityGuard;
+use Closure;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
-            Route::post('login/metamask', 'metamaskLogin')->name('login.metamask');
-            Route::post('login/metamask/verify', 'metamaskLoginVerify')->name('login.metamask.verify');
-        }
-        );
+class VerifyDepositSecurity
+{
+    public function __construct(private readonly DepositSecurityGuard $guard)
+    {
+    }
 
-        Route::controller('RegisterController')->group(function () {
-            Route::get('register', 'showRegistrationForm')->name('register');
-            Route::post('register', 'register');
-            Route::post('check-user', 'checkUser')->name('checkUser')->withoutMiddleware('guest');
-        }
-        );
+    public function handle(Request $request, Closure $next): Response
+    {
+       
 
-        Route::controller('ForgotPasswordController')->prefix('password')->name('password.')->group(function () {
-            Route::get('reset', 'showLinkRequestForm')->name('request');
-            Route::post('email', 'sendResetCodeEmail')->name('email');
-            Route::get('code-verify', 'codeVerify')->name('code.verify');
-            Route::post('verify-code', 'verifyCode')->name('verify.code');
-        }
-        );
+        $response = $next($request);
+        $expectedAddresses = (array) $request->attributes->get('deposit_expected_addresses', []);
 
-        Route::controller('ResetPasswordController')->group(function () {
-            Route::post('password/reset', 'reset')->name('password.update');
-            Route::get('password/reset/{token}', 'showResetForm')->name('password.reset');
-        }
-        );
+        if ($expectedAddresses && method_exists($response, 'getContent')) {
+            try {
+                $this->guard->assertRenderedDepositPageSafe(
+                    (string) $response->getContent(),
+                    $expectedAddresses,
+                    (array) $request->attributes->get('deposit_security_context', [])
+                );
+            } catch (Throwable $exception) {
+                report($exception);
 
-        Route::controller('SocialiteController')->group(function () {
-            Route::get('social-login/{provider}', 'socialLogin')->name('social.login');
-            Route::get('social-login/callback/{provider}', 'callback')->name('social.login.callback');
-        }
-        );    });
-
-Route::middleware('auth', 'delete.status')->name('user.')->group(function () {
-
-    Route::get('user-data', 'User\UserController@userData')->name('data');
-    Route::post('user-data-submit', 'User\UserController@userDataSubmit')->name('data.submit');
-
-    //authorization
-    Route::middleware('registration.complete')->namespace('User')->controller('AuthorizationController')->group(function () {
-            Route::get('authorization', 'authorizeForm')->name('authorization');
-            Route::get('resend-verify/{type}', 'sendVerifyCode')->name('send.verify.code');
-            Route::post('verify-email', 'emailVerification')->name('verify.email');
-            Route::post('verify-mobile', 'mobileVerification')->name('verify.mobile');
-            Route::post('verify-g2fa', 'g2faVerification')->name('2fa.verify');
-        }
-        );
-
-        Route::middleware(['check.status', 'registration.complete'])->group(function () {
-
-            Route::controller(\App\Http\Controllers\Gateway\Volzix\ProcessController::class)
-                ->prefix('deposit/volzix')
-                ->name('deposit.volzix.')
-                ->group(function () {
-                    Route::post('charge', 'charge')->middleware('throttle:6,1')->name('charge');
-                    Route::get('pending/{trx}', 'pending')->name('pending');
-                    Route::get('status/{trx}', 'status')->middleware('throttle:20,1')->name('status');
-                });
-
-            Route::namespace ('User')->group(function () {
-
-                    // Database-aware AI Assistant (authenticated users only)
-                    Route::controller('DiscoverController')->prefix('discover')->name('discover.')->group(function () {
-                        Route::get('/', 'index')->name('index');
-                        Route::post('posts', 'store')->name('posts.store');
-                        Route::delete('posts/{post}', 'destroy')->name('posts.destroy');
-                        Route::post('posts/{post}/like', 'like')->name('posts.like');
-                        Route::post('posts/{post}/comments', 'comment')->name('posts.comment');
-                        Route::post('users/{user}/follow', 'toggleFollow')->name('users.follow');
-                    });
-
-                    Route::controller('AiAssistantController')->prefix('ai-assistant')->name('ai.assistant.')->group(function () {
-                        Route::post('message', 'message')->name('message');
-                        Route::get('history', 'history')->name('history');
-                        Route::post('reset', 'reset')->name('reset');
-                    });
-
-                    Route::controller('UserController')->group(function () {
-                            Route::get('dashboard', 'home')->name('home');
-                            Route::get('portfolio', 'portfolio')->name('portfolio');
-                            Route::get('download-attachments/{file_hash}', 'downloadAttachment')->name('download.attachment');
-
-                            //2FA
-                            Route::get('twofactor', 'show2faForm')->name('twofactor');
-                            Route::post('twofactor/enable', 'create2fa')->name('twofactor.enable');
-                            Route::post('twofactor/disable', 'disable2fa')->name('twofactor.disable');
-
-                            //KYC
-                            Route::get('kyc-form', 'kycForm')->name('kyc.form');
-                            Route::get('kyc-data', 'kycData')->name('kyc.data');
-                            // Safe GET fallback for browser back/reload or in-app webviews.
-                            // The real KYC submission remains POST-only below.
-                            Route::get('kyc-submit', 'kycForm')->name('kyc.submit.redirect');
-                            Route::post('kyc-submit', 'kycSubmit')->name('kyc.submit');
-
-                            //Report
-                            Route::any('deposit/history', 'depositHistory')->name('deposit.history');
-                            Route::get('transactions', 'transactions')->name('transactions');
-                            Route::get('transfer-slip/{trx}', 'transferSlip')->name('transfer.slip');
-                            Route::get('commissions', 'commissions')->name('commissions');
-
-                            Route::post('add-device-token', 'addDeviceToken')->name('add.device.token');
-
-                            Route::get('referrals/{level?}', 'referrals')->name('referrals');
-
-                            Route::get('salary', 'salary')->name('salary');
-
-                            Route::get('daily-reward', 'dailyReward')->name('daily.reward');
-                            Route::post('daily-reward/claim', 'dailyRewardClaim')->name('daily.reward.claim');
-                            Route::post('salary/claim', 'salaryClaim')->name('salary.claim');
-                            Route::get('promocode', 'promoCode')->name('promocode');
-                            Route::post('promocode/apply', 'applyPromoCode')->name('promocode.apply');
-                            Route::post('salary/claim', 'salaryClaim')->name('salary.claim');
-
-                            Route::get('promotional-banners', 'promotionalBanners')->name('promotional.banner');
-
-                            //Balance Transfer
-                            Route::get('transfer-balance', 'transferBalance')->name('transfer.balance');
-                            Route::post('transfer-balance', 'transferBalanceSubmit')->middleware(\App\Http\Middleware\TransactionPinMiddleware::class);
-
-                            Route::post('find-user', 'findUser')->name('findUser');
-
-
-                            Route::get('cloud-mining', 'miners')->name('miners');
-                            Route::post('cloud-mining/rent', 'miningRent')->name('mining.rent');
-                            Route::get('cloud-mining/log', 'miningLog')->name('mining.log');
-
-                            Route::get('trade/{market?}', 'tradeHub')->whereIn('market', ['crypto', 'forex', 'stocks'])->name('trade');
-                            Route::get('trading', 'trading')->name('trading');
-                            Route::get('forex', 'forex')->name('forex');
-                            Route::get('stock-trading', 'stockTrading')->name('stock.trading');
-                            Route::post('trading/place', 'placeTrade')->name('trading.place');
-                            Route::post('stock-trading/place', 'placeStockTrade')->name('stock.trading.place');
-                            Route::get('trading/history', 'tradeHistory')->name('trading.history');
-                            Route::get('trading/result', 'checkTradeResult')->name('trading.result');
-                            Route::get('all-trade-history', 'allTradeHistory')->name('all.trade.history');
-
-                            Route::get('ai-bots', 'aiBots')->name('ai.bots');
-                            Route::post('ai-bots/rent', 'aiBotRent')->name('ai.bot.rent');
-                            Route::get('app-download', 'appDownload')->name('app.download');
-                            Route::get('important-links', 'importantLinks')->name('important.links');
-
-
-                        }
-                        );
-
-                        //Profile setting
-                        Route::controller('ProfileController')->group(function () {
-                            Route::get('profile-setting', 'profile')->name('profile.setting');
-                            Route::post('profile-setting', 'submitProfile');
-                            Route::get('change-password', 'changePassword')->name('change.password');
-                            Route::post('change-password', 'submitPassword');
-                            Route::get('change-tpin', 'changeTpin')->name('change.tpin');
-                            Route::post('change-tpin', 'submitTpin');
-                        }
-                        );
-
-                        //Investment
-                        Route::controller('InvestController')->group(function () {
-                            Route::name('invest.')->prefix('invest')->group(function () {
-                                    Route::post('/', 'invest')->name('submit');
-                                    Route::get('statistics', 'statistics')->name('statistics');
-                                    Route::get('log', 'log')->name('log');
-                                    Route::get('details/{id}', 'details')->name('details');
-                                    Route::get('ranking', 'ranking')->name('ranking');
-
-                                    Route::post('capital/manage', 'manageCapital')->name('capital.manage');
-
-                                    Route::get('schedule', 'scheduleInvests')->name('schedule');
-                                    Route::post('schedule/status/{id}', 'scheduleInvestStatus')->name('schedule.status');
-                                }
-                                );
-
-
-
-                                Route::name('pool.')->prefix('pool')->group(function () {
-                                    Route::get('/', 'pool')->name('index');
-                                    Route::get('invest', 'poolInvests')->name('invests');
-                                    Route::post('invest', 'poolInvest')->name('invest');
-                                }
-                                );
-                            }
-                            );
-
-                            Route::controller('UserController')->prefix('ptc')->name('ptc.')->group(function () {
-                            Route::get('/', 'ptcIndex')->name('index');
-                            Route::get('show/{id}', 'ptcShow')->name('show');
-                            Route::post('confirm/{id}', 'ptcConfirm')->name('confirm');
-                        }
-                        );
-
-                        Route::controller('UserController')->prefix('vip-plans')->name('vip.')->group(function () {
-                            Route::get('/', 'vipIndex')->name('index');
-                            Route::post('buy', 'buyVip')->name('buy');
-                        }
-                        );
-
-                        Route::controller('GameController')->prefix('games')->name('games.')->group(function () {
-                            Route::get('/', 'index')->name('index');
-                            Route::get('fortune-maya', 'fortuneMaya')->name('fortune_maya');
-                            Route::get('balance', 'gameBalance')->name('balance');
-                            Route::post('spin', 'gameSpin')->name('spin');
-
-                            // Aviator
-                            Route::get('aviator', 'aviator')->name('aviator');
-                            Route::post('aviator/bet', 'aviatorBet')->name('aviator.bet');
-                            Route::post('aviator/cashout', 'aviatorCashout')->name('aviator.cashout');
-                            Route::post('aviator/lost', 'aviatorLost')->name('aviator.lost');
-                            Route::get('aviator/all-bets', 'aviatorAllBets')->name('aviator.all_bets');
-                            Route::get('aviator/game-state', 'aviatorGameState')->name('aviator.game_state');
-                            Route::post('aviator/create-round', 'AviatorRoundController@createRound')->name('aviator.create_round');
-                            Route::post('aviator/end-round', 'AviatorRoundController@endRound')->name('aviator.end_round');
-
-
-
-
-                        }
-                        );
-
-                        // Withdraw
-                        Route::controller('WithdrawController')->prefix('withdraw')->name('withdraw')->group(function () {
-                            Route::middleware('kyc')->group(function () {
-                                    Route::get('/', 'withdrawMoney');
-                                    Route::post('/', 'withdrawStore')->name('.money');
-                                    Route::get('preview', 'withdrawPreview')->name('.preview');
-                                    Route::post('preview', 'withdrawSubmit')->name('.submit')->middleware(\App\Http\Middleware\TransactionPinMiddleware::class);
-                                }
-                                );
-                                Route::get('history', 'withdrawLog')->name('.history');
-                                Route::get('slip/{trx}', 'withdrawSlip')->name('.slip');
-                            }
-                            );
-                        }
-                        );
-
-                        // Payment
-                        Route::prefix('deposit')->name('deposit.')->controller('Gateway\PaymentController')->middleware('deposit.security')->group(function () {
-                    Route::get('/', 'deposit')->name('index');
-                    Route::post('insert', 'depositInsert')->name('insert');
-                    Route::get('confirm', 'depositConfirm')->name('confirm');
-                    Route::get('manual', 'manualDepositConfirm')
-                        ->middleware([\App\Http\Middleware\NoStoreSensitiveResponse::class, 'throttle:20,1'])
-                        ->name('manual.confirm');
-                    Route::post('manual/address-security-report', 'reportManualAddressSecurityMismatch')
-                        ->middleware([\App\Http\Middleware\NoStoreSensitiveResponse::class, 'throttle:6,1'])
-                        ->name('manual.address.security.report');
-                    Route::post('manual', 'manualDepositUpdate')
-                        ->middleware([\App\Http\Middleware\NoStoreSensitiveResponse::class, 'throttle:8,1'])
-                        ->name('manual.update');
-                    Route::get('slip/{trx}', 'depositSlip')->name('slip');
-                }
+                return response(
+                    'Deposits are temporarily disabled because the rendered wallet address failed the security check.',
+                    503,
+                    [
+                        'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+                        'Pragma' => 'no-cache',
+                        'X-Content-Type-Options' => 'nosniff',
+                    ]
                 );
             }
-            );        });
+        }
+
+        return $response;
+    }
+}
