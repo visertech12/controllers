@@ -1,759 +1,288 @@
-<?php
+@extends($activeTemplate . 'layouts.master')
+@section('content')
+@php
+    // Addresses and tokens are assigned and signed by the server. Never alter,
+    // calculate or accept a wallet address in the browser/template layer.
+    $assignedNetworks = isset($assignedNetworks) && is_array($assignedNetworks) ? $assignedNetworks : [];
+    $selectedNetwork  = count($assignedNetworks) ? $assignedNetworks[0] : null;
+    $fallbackAddress  = $selectedNetwork['address'] ?? '';
+@endphp
+k
+<style>
+    .tvx-deposit-page{max-width:1180px;margin:0 auto;padding:18px 14px 34px;color:#f5f7fa}.tvx-deposit-hero{border:1px solid rgba(255,255,255,.07);border-radius:24px;background:radial-gradient(circle at 0 0,rgba(240,185,11,.18),transparent 34%),linear-gradient(145deg,#151b24,#0f141c);padding:22px;box-shadow:0 18px 50px rgba(0,0,0,.24)}.tvx-deposit-title{font-size:30px;font-weight:900;line-height:1.12;margin:0}.tvx-muted{color:#929aa6}.tvx-grid{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(330px,.92fr);gap:16px;margin-top:16px}.tvx-card{border:1px solid rgba(255,255,255,.07);border-radius:22px;background:#151b24;padding:18px;box-shadow:0 14px 44px rgba(0,0,0,.18)}.tvx-card-soft{background:#1b2330}.tvx-section-title{font-weight:850;font-size:17px;margin:0 0 12px}.tvx-network-tabs{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px}.tvx-network-tab{border:1px solid rgba(255,255,255,.09);background:#222b37;color:#e9edf3;border-radius:14px;padding:10px 14px;font-size:13px;font-weight:850;white-space:nowrap;transition:.18s ease}.tvx-network-tab.is-active{background:#f0b90b;color:#111820;border-color:#f0b90b}.tvx-address-card{margin-top:14px;border:1px solid rgba(240,185,11,.24);border-radius:18px;background:linear-gradient(145deg,rgba(240,185,11,.12),rgba(255,255,255,.04));padding:15px}.tvx-address-label{font-size:12px;color:#b7bdc6;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}.tvx-address-row{display:flex;gap:8px;align-items:center}.tvx-address-input{flex:1;min-width:0;background:#0f141c;border:1px solid rgba(255,255,255,.10);border-radius:14px;color:#fff;padding:13px 12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}.tvx-copy-btn,.tvx-submit-btn{border:0;border-radius:14px;background:#f0b90b;color:#111820;font-weight:900;padding:13px 15px}.tvx-copy-btn{min-width:48px}.tvx-warning{border:1px solid rgba(240,185,11,.18);background:rgba(240,185,11,.08);border-radius:16px;padding:12px 14px;color:#e9edf3;font-size:13px;line-height:1.55}.tvx-summary-row{display:flex;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.07);font-size:14px}.tvx-summary-row:last-child{border-bottom:0}.tvx-summary-row span:first-child{color:#929aa6}.tvx-summary-row span:last-child{color:#fff;font-weight:800;text-align:right}.tvx-form-wrap .form-group{margin-bottom:14px}.tvx-form-wrap .form-group label{display:block;margin-bottom:7px;color:#b7bdc6;font-size:13px;font-weight:750}.tvx-form-wrap .form-control,.tvx-form-wrap input,.tvx-form-wrap select,.tvx-form-wrap textarea{width:100%;background:#0f141c!important;border:1px solid rgba(255,255,255,.10)!important;color:#fff!important;border-radius:14px!important;padding:12px 13px!important;box-shadow:none!important}.tvx-form-wrap input:focus,.tvx-form-wrap select:focus,.tvx-form-wrap textarea:focus{border-color:rgba(240,185,11,.72)!important;outline:0!important}.tvx-instruction-content img{max-width:100%;height:auto;border-radius:12px;margin:8px 0}.tvx-toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translate(-50%,18px);opacity:0;z-index:99999;pointer-events:none;background:#f0b90b;color:#111820;font-weight:900;border-radius:12px;padding:10px 14px;transition:.2s ease;box-shadow:0 12px 34px rgba(0,0,0,.3)}.tvx-toast.show{opacity:1;transform:translate(-50%,0)}@media(max-width:920px){.tvx-grid{grid-template-columns:1fr}.tvx-deposit-title{font-size:25px}.tvx-deposit-hero,.tvx-card{border-radius:20px;padding:16px}}@media(max-width:520px){.tvx-deposit-page{padding:12px 10px 28px}.tvx-address-row{flex-direction:column}.tvx-copy-btn{width:100%}.tvx-deposit-title{font-size:22px}}
+</style>
 
-namespace App\Http\Controllers\Gateway;
+<div class="tvx-deposit-page">
+    <div class="tvx-deposit-hero">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+            <div>
+                <h1 class="tvx-deposit-title">Deposit {{ __($data->method_currency) }}</h1>
+                <p class="tvx-muted mb-0 mt-2">Select the correct crypto network, copy your assigned address and submit your payment proof.</p>
+            </div>
+            <div class="text-end">
+                <div class="tvx-muted small">Order ID</div>
+                <div class="fw-bold text-white">{{ $data->trx }}</div>
+            </div>
+        </div>
+    </div>
 
-use App\Lib\HyipLab;
-use App\Models\Plan;
-use App\Models\User;
-use App\Models\Deposit;
-use App\Constants\Status;
-use App\Lib\FormProcessor;
-use App\Models\Transaction;
-use Illuminate\Http\Request;
-use App\Models\GatewayCurrency;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Facades\DB;
-use App\Models\AdminNotification;
-use App\Http\Controllers\Controller;
-use App\Services\SecureDepositAddressService;
-use App\Services\TradeVexaTelegramAlertService;
-use Throwable;
+    <div class="tvx-grid">
+        <div class="tvx-card">
+            <h3 class="tvx-section-title">Network & Address</h3>
 
-class PaymentController extends Controller
-{
-    public function __construct(
-        private readonly SecureDepositAddressService $depositAddressService,
-        private readonly TradeVexaTelegramAlertService $telegramAlertService
-    ) {
+            @if(count($assignedNetworks) > 0)
+                <div class="tvx-network-tabs" id="tvxNetworkTabs">
+                    @foreach($assignedNetworks as $network)
+                        <button type="button" class="tvx-network-tab {{ $loop->first ? 'is-active' : '' }}" data-key="{{ $network['key'] }}">{{ $network['label'] }}</button>
+                    @endforeach
+                </div>
+
+                <div class="tvx-address-card">
+                    <div class="tvx-address-label">Assigned deposit address</div>
+                    <div class="tvx-address-row">
+                        <input type="text" id="tvxDepositAddress" class="tvx-address-input" value="{{ $selectedNetwork['address'] }}" readonly>
+                        <button type="button" class="tvx-copy-btn" id="tvxCopyAddress"><i class="las la-copy"></i></button>
+                    </div>
+                    <div class="d-flex flex-wrap justify-content-between gap-2 mt-3 small">
+                        <span class="tvx-muted">Network: <strong class="text-white" id="tvxSelectedNetworkLabel">{{ $selectedNetwork['label'] }}</strong></span>
+                        <span class="tvx-muted">Valid today till: <strong class="text-white">{{ $selectedNetwork['expires_at'] }} PKT</strong></span>
+                    </div>
+                    <div class="tvx-warning mt-3" id="tvxNetworkInstruction">
+                        {{ $selectedNetwork['instructions'] ?: 'Send funds only on the selected network. Wrong network transfers may not be recoverable.' }}
+                    </div>
+                </div>
+            @else
+                <div class="tvx-address-card">
+                    <div class="tvx-address-label">Payment address</div>
+                    <div class="tvx-address-row">
+                        <input type="text" id="tvxDepositAddress" class="tvx-address-input" value="{{ $fallbackAddress }}" readonly>
+                        <button type="button" class="tvx-copy-btn" id="tvxCopyAddress"><i class="las la-copy"></i></button>
+                    </div>
+                    @if(@$gateway->extra->receiver_name)
+                        <div class="mt-3 small tvx-muted">Receiver: <strong class="text-white">{{ $gateway->extra->receiver_name }}</strong></div>
+                    @endif
+                </div>
+            @endif
+
+            <div class="tvx-card tvx-card-soft mt-3">
+                <h3 class="tvx-section-title">Instructions</h3>
+                <div class="tvx-instruction-content tvx-muted" style="line-height:1.7">
+                    @php echo $data->gateway->description @endphp
+                </div>
+                <div class="tvx-warning mt-3">
+                    Send the exact amount shown below. After payment, upload the required proof and submit your deposit request. Network/address is assigned to your account for today.
+                </div>
+            </div>
+        </div>
+
+        <div class="tvx-card">
+            <h3 class="tvx-section-title">Payment Summary</h3>
+            <div class="tvx-summary-row"><span>Gateway</span><span>{{ __($data->gateway->name) }}</span></div>
+            <div class="tvx-summary-row"><span>Deposit Amount</span><span>{{ showAmount($data->amount) }} {{ __(gs('cur_text')) }}</span></div>
+            <div class="tvx-summary-row"><span>Charge</span><span>{{ showAmount($data->charge) }} {{ __(gs('cur_text')) }}</span></div>
+            <div class="tvx-summary-row"><span>Total Payable</span><span>{{ showAmount($data->final_amount, currencyFormat: false) }} {{ __($data->method_currency) }}</span></div>
+            <div class="tvx-summary-row"><span>Rate</span><span>1 {{ __(gs('cur_text')) }} = {{ showAmount($data->rate, currencyFormat: false) }} {{ __($data->method_currency) }}</span></div>
+
+            <form action="{{ route('user.deposit.manual.update') }}" method="POST" enctype="multipart/form-data" class="tvx-form-wrap mt-4">
+                @csrf
+                @if(count($assignedNetworks) > 0)
+                    <input type="hidden" name="crypto_network" id="tvxCryptoNetwork" value="{{ $selectedNetwork['key'] }}">
+                    <input type="hidden" name="address_token" id="tvxAddressToken" value="{{ $selectedNetwork['address_token'] }}">
+                @endif
+
+                <x-viser-form identifier="id" identifierValue="{{ $gateway->form_id }}" />
+
+                <button class="tvx-submit-btn w-100 mt-2" type="submit">Submit Deposit Request</button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div id="tvxCopyToast" class="tvx-toast">Copied</div>
+@endsection
+
+@push('script')
+<script>
+(function(){
+    const networks = @json($assignedNetworks);
+    const reportUrl = @json(route('user.deposit.manual.address.security.report'));
+    const csrfToken = @json(csrf_token());
+    const tabs = document.querySelectorAll('.tvx-network-tab');
+    const addressInput = document.getElementById('tvxDepositAddress');
+    const hiddenNetwork = document.getElementById('tvxCryptoNetwork');
+    const hiddenToken = document.getElementById('tvxAddressToken');
+    const label = document.getElementById('tvxSelectedNetworkLabel');
+    const instruction = document.getElementById('tvxNetworkInstruction');
+    const copyBtn = document.getElementById('tvxCopyAddress');
+    const submitBtn = document.querySelector('.tvx-submit-btn');
+    const depositForm = document.querySelector('form.tvx-form-wrap');
+    const toast = document.getElementById('tvxCopyToast');
+    const reported = new Set();
+    let timer = null;
+    let securityLocked = false;
+
+    function showToast(message){
+        if(!toast) return;
+        toast.textContent = message || 'Copied';
+        toast.classList.add('show');
+        clearTimeout(timer);
+        timer = setTimeout(function(){ toast.classList.remove('show'); }, 2200);
     }
 
-    public function deposit()
-    {
-        $user = auth()->user();
-
-        if ($user->deposit_access == 1) {
-$notify[] = ['error', 'You do not have access to the deposit page. Please contact the admin.'];
-            return redirect()->route('user.home')->withNotify($notify);
-        }
-
-        $pendingManualDeposit = $this->pendingManualDeposit();
-
-        if ($pendingManualDeposit) {
-            session()->forget('Track');
-            $pageTitle = 'Deposit Under Review';
-            return view('Template::user.payment.pending_manual', compact('pendingManualDeposit', 'pageTitle'));
-        }
-
-        $gatewayCurrency = GatewayCurrency::whereHas('method', function ($gate) {
-            $gate->where('status', Status::ENABLE);
-        })->with('method')->orderby('name')->get();
-
-        $pageTitle = 'Deposit Methods';
-        return view('Template::user.payment.deposit', compact('gatewayCurrency', 'pageTitle'));
+    function selectedNetwork(){
+        const key = String(hiddenNetwork ? hiddenNetwork.value : '').toUpperCase();
+        return networks.find(function(item){
+            return String(item.key || '').toUpperCase() === key;
+        }) || null;
     }
 
-
-    public function depositInsert(Request $request)
-    {
-        $request->validate([
-            'amount'   => 'required|numeric|gt:0',
-            'gateway'  => 'required',
-            'currency' => 'required',
-        ]);
-
-        $user = auth()->user();
-
-        if ($this->pendingManualDeposit()) {
-            session()->forget('Track');
-            $notify[] = ['warning', 'Your deposit is under review. You can submit another deposit after the current request is approved or rejected.'];
-            return to_route('user.deposit.index')->withNotify($notify);
+    function setSecurityLock(locked){
+        securityLocked = locked;
+        if(addressInput){
+            addressInput.style.borderColor = locked ? '#ff4d4f' : '';
+            addressInput.style.boxShadow = locked ? '0 0 0 3px rgba(255,77,79,.15)' : '';
         }
-
-        $gate = GatewayCurrency::whereHas('method', function ($gate) {
-            $gate->where('status', Status::ENABLE);
-        })->where('method_code', $request->gateway)->where('currency', $request->currency)->first();
-        if (!$gate) {
-            $notify[] = ['error', 'Invalid gateway'];
-            return back()->withNotify($notify);
-        }
-
-        if ($gate->min_amount > $request->amount || $gate->max_amount < $request->amount) {
-            $notify[] = ['error', 'Please follow deposit limit'];
-            return back()->withNotify($notify);
-        }
-
-        $data = self::insertDeposit($gate, $request->amount);
-        session()->put('Track', $data->trx);
-        return to_route('user.deposit.confirm');
-    }
-
-    public static function insertDeposit($gateway, $amount, $investPlan = null, $compoundTimes = 0)
-    {
-        $user        = auth()->user();
-        $charge      = $gateway->fixed_charge + ($amount * $gateway->percent_charge / 100);
-        $payable     = $amount + $charge;
-        $finalAmount = $payable * $gateway->rate;
-
-        $data = new Deposit();
-        if ($investPlan) {
-            $data->plan_id = $investPlan->id;
-        }
-        $data->user_id         = $user->id;
-        $data->method_code     = $gateway->method_code;
-        $data->method_currency = strtoupper($gateway->currency);
-        $data->amount          = $amount;
-        $data->charge          = $charge;
-        $data->rate            = $gateway->rate;
-        $data->final_amount    = $finalAmount;
-        $data->btc_amount      = 0;
-        $data->btc_wallet      = "";
-        $data->trx             = getTrx();
-        $data->success_url     = urlPath('user.deposit.slip', $data->trx);
-        $data->failed_url      = urlPath('user.deposit.history');
-        $data->compound_times  = $compoundTimes ?? 0;
-        $data->save();
-
-        return $data;
-    }
-
-    public function appDepositConfirm($hash)
-    {
-        try {
-            $id = decrypt($hash);
-        } catch (\Exception $ex) {
-            abort(404);
-        }
-        $data = Deposit::where('id', $id)->where('status', Status::PAYMENT_INITIATE)->orderBy('id', 'DESC')->firstOrFail();
-        $user = User::findOrFail($data->user_id);
-        auth()->login($user);
-        session()->put('Track', $data->trx);
-        return to_route('user.deposit.confirm');
-    }
-
-    public function depositConfirm()
-    {
-        $track = session()->get('Track');
-        
-        $deposit = Deposit::where('trx', $track)->where('status', Status::PAYMENT_INITIATE)->orderBy('id', 'DESC')->with('gateway')->firstOrFail();
-
-        if ($this->pendingManualDeposit()) {
-            session()->forget('Track');
-            $notify[] = ['warning', 'Your deposit is already under review. Please wait for the admin status update.'];
-            return to_route('user.deposit.index')->withNotify($notify);
-        }
-
-        if ($deposit->method_code >= 1000) {
-            return to_route('user.deposit.manual.confirm');
-        }
-
-        $dirName = $deposit->gateway->alias;
-        $new     = __NAMESPACE__ . '\\' . $dirName . '\\ProcessController';
-
-        $data = $new::process($deposit);
-        $data = json_decode($data);
-
-        if (isset($data->error)) {
-            $notify[] = ['error', $data->message];
-            return back()->withNotify($notify);
-        }
-        if (isset($data->redirect)) {
-            return redirect($data->redirect_url);
-        }
-
-        // for Stripe V3
-        if (@$data->session) {
-            $deposit->btc_wallet = $data->session->id;
-            $deposit->save();
-        }
-        
-        $pageTitle = 'Payment Confirm';
-        return view("Template::$data->view", compact('data', 'pageTitle', 'deposit'));
-    }
-
-    public static function userDataUpdate($deposit, $isManual = null)
-    {
-        if ($deposit->status == Status::PAYMENT_INITIATE || $deposit->status == Status::PAYMENT_PENDING) {
-            $deposit->status = Status::PAYMENT_SUCCESS;
-            $deposit->save();
-
-            $user = User::find($deposit->user_id);
-            $user->interest_wallet += $deposit->amount;
-            $user->save();
-
-
-            $methodName = $deposit->methodName();
-
-            $transaction               = new Transaction();
-            $transaction->user_id      = $deposit->user_id;
-            $transaction->amount       = $deposit->amount;
-            $transaction->post_balance = $user->interest_wallet;
-            $transaction->charge       = $deposit->charge;
-            $transaction->trx_type     = '+';
-            $transaction->details      = 'Deposit Via ' . $methodName;
-            $transaction->trx          = $deposit->trx;
-            $transaction->wallet_type  = 'interest_wallet';
-            $transaction->remark       = 'deposit';
-            $transaction->save();
-
-
-            if (!$isManual) {
-                $adminNotification            = new AdminNotification();
-                $adminNotification->user_id   = $user->id;
-                $adminNotification->title     = 'Deposit successful via ' . $methodName;
-                $adminNotification->click_url = urlPath('admin.deposit.successful');
-                $adminNotification->save();
-            }
-
-
-            $general = gs();
-            if ($general->deposit_commission) {
-                HyipLab::levelCommission($user, $deposit->amount, 'deposit_commission', $deposit->trx, $general);
-            }
-
-            if ($deposit->plan_id) {
-                $plan = Plan::with('timeSetting')->whereHas('timeSetting', function ($time) {
-                    $time->where('status', Status::ENABLE);
-                })->where('status', Status::ENABLE)->findOrFail($deposit->plan_id);
-                $hyip = new HyipLab($user, $plan);
-                $hyip->invest($deposit->amount, 'interest_wallet', $deposit->compound_times);
-            }
-
-
-            notify($user, $isManual ? 'DEPOSIT_APPROVE' : 'DEPOSIT_COMPLETE', [
-                'method_name'     => $methodName,
-                'method_currency' => $deposit->method_currency,
-                'method_amount'   => showAmount($deposit->final_amount, currencyFormat: false),
-                'amount'          => showAmount($deposit->amount, currencyFormat: false),
-                'charge'          => showAmount($deposit->charge, currencyFormat: false),
-                'rate'            => showAmount($deposit->rate, currencyFormat: false),
-                'trx'             => $deposit->trx,
-                'post_balance'    => showAmount($user->interest_wallet, currencyFormat: false),
-            ]);
+        if(submitBtn){
+            submitBtn.disabled = locked;
+            submitBtn.textContent = locked ? 'Deposit Blocked — Security Alert Sent' : 'Submit Deposit Request';
         }
     }
 
-    public function manualDepositConfirm(Request $request)
-    {
-        $track = session()->get('Track');
-        $data  = Deposit::with('gateway')->where('status', Status::PAYMENT_INITIATE)->where('trx', $track)->first();
-        abort_if(!$data, 404);
+    function reportMismatch(reason, state, trigger){
+        const key = [reason, state.network, state.observed, state.token].join('|');
+        if(reported.has(key)) return;
+        reported.add(key);
 
-        if ($this->pendingManualDeposit($data->id)) {
-            session()->forget('Track');
-            $notify[] = ['warning', 'Your deposit is already under review. Please wait for the admin status update.'];
-            return to_route('user.deposit.index')->withNotify($notify);
-        }
-
-        if ($data->method_code > 999) {
-            $pageTitle = 'Confirm Deposit';
-            $method    = $data->gatewayCurrency();
-            $gateway   = $method->method;
-            $secureAddressRequired = $this->depositAddressService->gatewayUsesSecureStore($gateway);
-
-            try {
-                $assignedNetworks = $secureAddressRequired
-                    ? $this->depositAddressService->assignedNetworks($gateway, auth()->user(), $data, $request)
-                    : [];
-            } catch (Throwable $exception) {
-                report($exception);
-                abort(503, 'Deposits are temporarily disabled by the wallet security policy.');
-            }
-
-            if ($secureAddressRequired) {
-                $request->attributes->set(
-                    'deposit_expected_addresses',
-                    array_values(array_filter(array_column($assignedNetworks, 'address')))
-                );
-                $request->attributes->set('deposit_security_context', [
-                    'source' => 'server_rendered_html_scan',
-                    'gateway_id' => $gateway->id,
-                    'gateway_name' => $gateway->name,
-                    'deposit_id' => $data->id,
-                    'deposit_trx' => $data->trx,
-                    'username' => auth()->user()?->username,
-                    'email' => auth()->user()?->email,
-                    'ip' => $request->ip(),
-                    'user_agent' => $request->userAgent(),
-                    'request_url' => $request->fullUrl(),
-                ]);
-            }
-
-            return view('Template::user.payment.manual', compact(
-                'data',
-                'pageTitle',
-                'method',
-                'gateway',
-                'assignedNetworks',
-                'secureAddressRequired'
-            ));
-        }
-        abort(404);
-    }
-
-    public function reportManualAddressSecurityMismatch(Request $request)
-    {
-        $validated = $request->validate([
-            'observed_address' => 'nullable|string|max:300',
-            'crypto_network' => 'nullable|string|max:80',
-            'address_token' => 'nullable|string|max:2048',
-            'client_reason' => 'nullable|string|max:120',
-        ]);
-
-        $track = session()->get('Track');
-        $data = Deposit::with(['gateway', 'user'])
-            ->where('status', Status::PAYMENT_INITIATE)
-            ->where('trx', $track)
-            ->first();
-
-        if (!$data || !$data->gateway) {
-            return response()->json(['reported' => false], 202);
-        }
-
-        $gateway = $data->gatewayCurrency()?->method ?? $data->gateway;
-        $network = strtoupper(trim((string) ($validated['crypto_network'] ?? '')));
-        $observed = trim((string) ($validated['observed_address'] ?? ''));
-        $token = trim((string) ($validated['address_token'] ?? ''));
-        $expected = null;
-
-        if ($token !== '') {
-            try {
-                $expected = $this->depositAddressService->resolveAssignmentToken(
-                    $token,
-                    $data,
-                    $data->user,
-                    $request
-                );
-            } catch (Throwable $exception) {
-                report($exception);
-            }
-        }
-
-        $isApproved = $observed !== ''
-            && $this->depositAddressService->isActiveAdminAddress($gateway, $observed, $network ?: null);
-
-        $reason = 'Deposit-page address differs from the signed server assignment';
-        if ($observed === '') {
-            $reason = 'Deposit-page wallet address was removed or emptied';
-        } elseif (!$isApproved) {
-            $reason = 'Deposit-page wallet address is not present in admin settings';
-        } elseif (!$expected) {
-            $reason = 'Deposit-page address token is invalid, missing or expired';
-        } elseif (!hash_equals((string) $expected['address'], $observed)) {
-            $reason = 'Deposit-page wallet address does not match the selected signed assignment';
-        } else {
-            return response()->json(['reported' => false, 'status' => 'match']);
-        }
-
-        $user = $data->user;
-        $this->telegramAlertService->sendUnauthorizedDepositAddressAlert([
-            'reason' => $reason,
-            'source' => 'browser_deposit_page_watch',
-            'observed_address' => $observed,
-            'expected_address' => $expected['address'] ?? '',
-            'network' => $network ?: ($expected['key'] ?? '-'),
-            'gateway_id' => $gateway->id,
-            'gateway_name' => $gateway->name,
-            'deposit_id' => $data->id,
-            'deposit_trx' => $data->trx,
-            'username' => $user?->username,
-            'email' => $user?->email,
-            'ip' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-            'request_url' => $request->headers->get('referer') ?: $request->fullUrl(),
-            'client_reason' => $validated['client_reason'] ?? null,
-        ]);
-
-        return response()->json(['reported' => true], 202);
-    }
-
-    public function manualDepositUpdate(Request $request)
-    {
-        $track = session()->get('Track');
-        $data  = Deposit::with('gateway')->where('status', Status::PAYMENT_INITIATE)->where('trx', $track)->first();
-        abort_if(!$data, 404);
-
-        if ($this->pendingManualDeposit($data->id)) {
-            session()->forget('Track');
-            $notify[] = ['warning', 'Your deposit is already under review. Please wait for the admin status update.'];
-            return to_route('user.deposit.index')->withNotify($notify);
-        }
-
-        $gatewayCurrency = $data->gatewayCurrency();
-        $gateway         = $gatewayCurrency->method;
-        $formData        = $gateway->form->form_data;
-
-        $formProcessor  = new FormProcessor();
-        $validationRule = $formProcessor->valueValidation($formData);
-        $secureAddressRequired = $this->depositAddressService->gatewayUsesSecureStore($gateway);
-
-        if ($secureAddressRequired) {
-            if (!$this->depositAddressService->ready()) {
-                $notify[] = ['error', 'Secure deposit address service is temporarily unavailable. Please try again later.'];
-                return back()->withNotify($notify);
-            }
-
-            $validationRule['crypto_network'] = 'required|string|max:80';
-            $validationRule['address_token'] = 'required|string|max:2048';
-        }
-
-        $request->validate($validationRule);
-
-        $slipHashes = $this->manualDepositSlipHashesFromRequest($request, $formData);
-        $duplicateDeposit = $this->findDuplicateManualDepositSlip($slipHashes, $data);
-
-        if ($duplicateDeposit) {
-            $notify[] = ['error', 'This payment slip has already been submitted before. Please upload a new/original slip.'];
-            return back()->withInput()->withNotify($notify);
-        }
-
-        $selectedNetwork = null;
-        if ($secureAddressRequired) {
-            try {
-                $selectedNetwork = $this->depositAddressService->resolveAssignmentToken(
-                    (string) $request->address_token,
-                    $data,
-                    $data->user,
-                    $request
-                );
-            } catch (Throwable $exception) {
-                report($exception);
-                $notify[] = ['error', 'Deposits are temporarily disabled by the wallet security policy.'];
-                return back()->withNotify($notify);
-            }
-
-            if (!$selectedNetwork || !hash_equals((string) $selectedNetwork['key'], strtoupper(trim((string) $request->crypto_network)))) {
-                $notify[] = ['error', 'Invalid or expired deposit address assignment. Please refresh the deposit page and try again.'];
-                return back()->withNotify($notify);
-            }
-        }
-
-        $userData = $formProcessor->processFormData($request, $formData);
-
-        if ($selectedNetwork) {
-            $userData[] = [
-                'name' => 'Crypto Network',
-                'type' => 'text',
-                'value' => $selectedNetwork['label'],
-            ];
-            $userData[] = [
-                'name' => 'Payment Address',
-                'type' => 'text',
-                'value' => $selectedNetwork['address'],
-            ];
-            $userData[] = [
-                'name' => 'Address Valid Date',
-                'type' => 'text',
-                'value' => $selectedNetwork['date'],
-            ];
-        }
-
-        $stored = DB::transaction(function () use (&$data, $userData, $slipHashes, $selectedNetwork, $request) {
-            // Lock the user row so two simultaneous manual submissions cannot both become pending.
-            $lockedUser = User::whereKey($data->user_id)->lockForUpdate()->first();
-
-            if (!$lockedUser) {
-                return 'invalid_user';
-            }
-
-            $alreadyPending = Deposit::where('user_id', $data->user_id)
-                ->where('id', '!=', $data->id)
-                ->where('method_code', '>=', 1000)
-                ->where('status', Status::PAYMENT_PENDING)
-                ->exists();
-
-            if ($alreadyPending) {
-                return 'pending';
-            }
-
-            $lockedDeposit = Deposit::with('gateway')
-                ->whereKey($data->id)
-                ->where('status', Status::PAYMENT_INITIATE)
-                ->lockForUpdate()
-                ->first();
-
-            if (!$lockedDeposit) {
-                return 'invalid_deposit';
-            }
-
-            if ($selectedNetwork) {
-                $lockedAssignment = $this->depositAddressService->lockAssignmentForUse(
-                    (int) $selectedNetwork['assignment_id'],
-                    (string) $selectedNetwork['token_hash'],
-                    $lockedDeposit,
-                    $lockedUser,
-                    $request
-                );
-
-                if (!$lockedAssignment) {
-                    return 'invalid_assignment';
-                }
-            }
-
-            $lockedDeposit->detail = $userData;
-            $lockedDeposit->status = Status::PAYMENT_PENDING;
-
-            if (Schema::hasColumn('deposits', 'deposit_slip_hash') && !empty($slipHashes)) {
-                $lockedDeposit->deposit_slip_hash = $slipHashes[0]['hash'];
-            }
-
-            $lockedDeposit->save();
-            $data = $lockedDeposit->load('gateway');
-
-            return 'stored';
+        fetch(reportUrl, {
+            method: 'POST',
+            credentials: 'same-origin',
+            keepalive: true,
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                observed_address: state.observed,
+                crypto_network: state.network,
+                address_token: state.token,
+                client_reason: reason + ':' + (trigger || 'watch')
+            })
+        }).catch(function(){
+            // The server-side signed token and allowlist still block submission.
         });
-
-        if ($stored !== 'stored') {
-            if ($stored === 'invalid_assignment') {
-                $notify[] = ['error', 'This deposit address assignment is no longer valid. Refresh the deposit page and submit again.'];
-                return back()->withNotify($notify);
-            }
-
-            session()->forget('Track');
-            $notify[] = ['warning', 'Your deposit is already under review or this deposit order is no longer valid.'];
-            return to_route('user.deposit.index')->withNotify($notify);
-        }
-
-        $adminNotification            = new AdminNotification();
-        $adminNotification->user_id   = $data->user->id;
-        $adminNotification->title     = 'Deposit request from ' . $data->user->username;
-        $adminNotification->click_url = urlPath('admin.deposit.details', $data->id);
-        $adminNotification->save();
-
-        notify($data->user, 'DEPOSIT_REQUEST', [
-            'method_name'     => $data->gatewayCurrency()->name,
-            'method_currency' => $data->method_currency,
-            'method_amount'   => showAmount($data->final_amount, currencyFormat: false),
-            'amount'          => showAmount($data->amount, currencyFormat: false),
-            'charge'          => showAmount($data->charge, currencyFormat: false),
-            'rate'            => showAmount($data->rate, currencyFormat: false),
-            'trx'             => $data->trx,
-        ]);
-
-        $trx = trim((string) $data->trx);
-
-        // Keep a server-side reference to the slip that was just submitted. This
-        // is used only as a safe recovery value for this authenticated session.
-        session()->put('last_deposit_slip_trx', $trx);
-        session()->forget('Track');
-
-        $notify[] = ['success', 'Your deposit request has been submitted successfully'];
-
-        // Use an explicit named parameter and a 303 response after POST. This
-        // prevents the browser/webview from re-posting the deposit form and
-        // reliably opens the user-owned deposit slip page.
-        return redirect()->route(
-            'user.deposit.slip',
-            ['trx' => $trx],
-            303
-        )->withNotify($notify);
     }
 
+    function verifySecurityState(trigger){
+        if(!addressInput || !networks.length) return true;
 
-    private function manualDepositSlipHashesFromRequest(Request $request, $formData): array
-    {
-        $slipHashes = [];
+        const selected = selectedNetwork();
+        const state = {
+            observed: String(addressInput.value || '').trim(),
+            network: String(hiddenNetwork ? hiddenNetwork.value : '').toUpperCase(),
+            token: String(hiddenToken ? hiddenToken.value : '')
+        };
 
-        foreach ($formData as $field) {
-            if (($field->type ?? null) !== 'file') {
-                continue;
-            }
-
-            $fieldName = $field->label ?? null;
-
-            if (!$fieldName || !$request->hasFile($fieldName)) {
-                continue;
-            }
-
-            $uploadedFile = $request->file($fieldName);
-
-            if (!$uploadedFile || !$uploadedFile->isValid()) {
-                continue;
-            }
-
-            $realPath = $uploadedFile->getRealPath();
-
-            if (!$realPath || !is_readable($realPath)) {
-                continue;
-            }
-
-            $hash = hash_file('sha256', $realPath);
-
-            if (!$hash) {
-                continue;
-            }
-
-            $slipHashes[] = [
-                'label' => $fieldName,
-                'name'  => $field->name ?? $fieldName,
-                'hash'  => $hash,
-            ];
+        let reason = '';
+        if(!selected){
+            reason = 'unknown_or_modified_network';
+        }else if(state.observed === ''){
+            reason = 'deposit_address_removed';
+        }else if(state.observed !== String(selected.address || '').trim()){
+            reason = 'deposit_address_dom_mismatch';
+        }else if(state.token !== String(selected.address_token || '')){
+            reason = 'signed_address_token_modified';
         }
 
-        return $slipHashes;
+        if(reason){
+            setSecurityLock(true);
+            reportMismatch(reason, state, trigger);
+            return false;
+        }
+
+        setSecurityLock(false);
+        return true;
     }
 
-    private function findDuplicateManualDepositSlip(array $slipHashes, Deposit $currentDeposit): ?Deposit
-    {
-        $hashes = collect($slipHashes)->pluck('hash')->filter()->unique()->values()->all();
-
-        if (empty($hashes)) {
-            return null;
-        }
-
-        if (Schema::hasColumn('deposits', 'deposit_slip_hash')) {
-            $duplicateDeposit = Deposit::where('id', '!=', $currentDeposit->id)
-                ->where('method_code', '>=', 1000)
-                ->whereIn('status', [Status::PAYMENT_PENDING, Status::PAYMENT_SUCCESS, Status::PAYMENT_REJECT])
-                ->whereIn('deposit_slip_hash', $hashes)
-                ->latest('id')
-                ->first();
-
-            if ($duplicateDeposit) {
-                return $duplicateDeposit;
-            }
-        }
-
-        return $this->findDuplicateManualDepositSlipFromExistingDetails($hashes, $currentDeposit);
+    function selectNetwork(key){
+        const selected = networks.find(function(item){ return item.key === key; });
+        if(!selected) return;
+        tabs.forEach(function(tab){ tab.classList.toggle('is-active', tab.getAttribute('data-key') === key); });
+        if(addressInput) addressInput.value = selected.address || '';
+        if(hiddenNetwork) hiddenNetwork.value = selected.key || '';
+        if(hiddenToken) hiddenToken.value = selected.address_token || '';
+        if(label) label.textContent = selected.label || selected.network || selected.key;
+        if(instruction) instruction.textContent = selected.instructions || 'Send funds only on the selected network. Wrong network transfers may not be recoverable.';
+        verifySecurityState('network_select');
     }
 
-    private function findDuplicateManualDepositSlipFromExistingDetails(array $hashes, Deposit $currentDeposit): ?Deposit
-    {
-        $query = Deposit::where('id', '!=', $currentDeposit->id)
-            ->where('method_code', '>=', 1000)
-            ->whereIn('status', [Status::PAYMENT_PENDING, Status::PAYMENT_SUCCESS, Status::PAYMENT_REJECT])
-            ->whereNotNull('detail')
-            ->latest('id')
-            ->limit(1500);
+    tabs.forEach(function(tab){
+        tab.addEventListener('click', function(){ selectNetwork(tab.getAttribute('data-key')); });
+    });
 
-        if (Schema::hasColumn('deposits', 'deposit_slip_hash')) {
-            $query->where(function ($q) use ($hashes) {
-                $q->whereNull('deposit_slip_hash')->orWhereNotIn('deposit_slip_hash', $hashes);
-            });
-        }
+    if(addressInput){
+        addressInput.addEventListener('input', function(){ verifySecurityState('address_input'); });
+        addressInput.addEventListener('change', function(){ verifySecurityState('address_change'); });
 
-        foreach ($query->get(['id', 'detail']) as $deposit) {
-            foreach ($this->manualDepositFilePathsFromDetail($deposit->detail) as $filePath) {
-                $resolvedPath = $this->resolveManualDepositFilePath($filePath);
+        new MutationObserver(function(){ verifySecurityState('dom_mutation'); }).observe(addressInput, {
+            attributes: true,
+            attributeFilter: ['value', 'readonly', 'disabled', 'type']
+        });
+    }
 
-                if (!$resolvedPath) {
-                    continue;
+    if(hiddenNetwork){
+        new MutationObserver(function(){ verifySecurityState('network_mutation'); }).observe(hiddenNetwork, {
+            attributes: true,
+            attributeFilter: ['value', 'name', 'type']
+        });
+    }
+
+    if(hiddenToken){
+        new MutationObserver(function(){ verifySecurityState('token_mutation'); }).observe(hiddenToken, {
+            attributes: true,
+            attributeFilter: ['value', 'name', 'type']
+        });
+    }
+
+    if(copyBtn){
+        copyBtn.addEventListener('click', async function(){
+            if(!verifySecurityState('copy_click')){
+                showToast('Unsafe address blocked — admin alerted');
+                return;
+            }
+
+            const value = addressInput ? addressInput.value : '';
+            if(!value) return;
+            try{
+                if(navigator.clipboard && window.isSecureContext){
+                    await navigator.clipboard.writeText(value);
+                }else{
+                    addressInput.focus();
+                    addressInput.select();
+                    document.execCommand('copy');
                 }
-
-                $existingHash = hash_file('sha256', $resolvedPath);
-
-                if ($existingHash && in_array($existingHash, $hashes, true)) {
-                    return $deposit;
-                }
+                showToast('Address copied');
+            }catch(e){
+                showToast('Unable to copy');
             }
-        }
-
-        return null;
+        });
     }
 
-    private function manualDepositFilePathsFromDetail($detail): array
-    {
-        $files = [];
-        $items = is_array($detail) ? $detail : (is_object($detail) ? (array) $detail : (is_iterable($detail) ? $detail : []));
-
-        foreach ($items as $item) {
-            $item = (object) $item;
-
-            if (($item->type ?? null) !== 'file' || empty($item->value)) {
-                continue;
+    if(depositForm){
+        depositForm.addEventListener('submit', function(event){
+            if(!verifySecurityState('form_submit') || securityLocked){
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                showToast('Deposit blocked — wallet security alert sent');
             }
-
-            $files[] = getFilePath('verify') . '/' . ltrim((string) $item->value, '/\\');
-        }
-
-        return $files;
+        }, true);
     }
 
-    private function resolveManualDepositFilePath(string $filePath): ?string
-    {
-        $candidatePaths = [
-            $filePath,
-            public_path($filePath),
-            base_path($filePath),
-            base_path('../' . ltrim($filePath, '/\\')),
-        ];
-
-        foreach (array_unique($candidatePaths) as $candidatePath) {
-            if ($candidatePath && is_file($candidatePath) && is_readable($candidatePath)) {
-                return $candidatePath;
-            }
-        }
-
-        return null;
-    }
-
-    private function pendingManualDeposit(?int $excludeDepositId = null): ?Deposit
-    {
-        $userId = auth()->id();
-
-        if (!$userId) {
-            return null;
-        }
-
-        $query = Deposit::with('gateway')
-            ->where('user_id', $userId)
-            ->where('method_code', '>=', 1000)
-            ->where('status', Status::PAYMENT_PENDING);
-
-        if ($excludeDepositId) {
-            $query->where('id', '!=', $excludeDepositId);
-        }
-
-        return $query->latest('id')->first();
-    }
-
-    public function depositSlip($trx)
-    {
-        $userId = (int) auth()->id();
-        $trx    = strtoupper(trim((string) $trx));
-
-        // Transaction references generated by TradeVexa are short alpha-numeric
-        // values. Reject malformed input without exposing an exception page.
-        if (!$userId || $trx === '' || !preg_match('/^[A-Z0-9]{6,40}$/', $trx)) {
-            $notify[] = ['error', 'Invalid deposit slip reference.'];
-            return to_route('user.deposit.history')->withNotify($notify);
-        }
-
-        // Ownership is the security boundary. Do not require a particular status:
-        // the slip template already supports Initiated, Pending, Approved and
-        // Rejected deposits. The previous status filter could produce a false 404
-        // immediately after a successful manual submission.
-        $deposit = Deposit::with('gateway')
-            ->where('user_id', $userId)
-            ->where('trx', $trx)
-            ->first();
-
-        // Safe same-session recovery for older webviews that may normalize the
-        // redirected URL incorrectly. It never crosses user ownership.
-        if (!$deposit) {
-            $lastTrx = strtoupper(trim((string) session()->get('last_deposit_slip_trx', '')));
-
-            if ($lastTrx !== '' && hash_equals($lastTrx, $trx)) {
-                $deposit = Deposit::with('gateway')
-                    ->where('user_id', $userId)
-                    ->where('trx', $lastTrx)
-                    ->first();
-            }
-        }
-
-        if (!$deposit) {
-            $notify[] = ['error', 'Deposit slip was not found for this account.'];
-            return to_route('user.deposit.history')->withNotify($notify);
-        }
-
-        $pageTitle = 'Deposit Slip';
-
-        return response()
-            ->view('Template::user.deposit.slip', compact('pageTitle', 'deposit'))
-            ->withHeaders([
-                'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0, private',
-                'Pragma'        => 'no-cache',
-                'Expires'       => '0',
-            ]);
-    }
-
-}
+    // Property assignments such as input.value = 'attacker-address' do not always
+    // trigger DOM mutation events, so verify continuously as a second layer.
+    setInterval(function(){ verifySecurityState('periodic_watch'); }, 1000);
+    verifySecurityState('page_load');
+})();
+</script>
+@endpush
