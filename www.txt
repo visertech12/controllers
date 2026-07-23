@@ -1,290 +1,59 @@
-@extends($activeTemplate . 'layouts.master')
-@section('content')
-@php
-    // Addresses and tokens are assigned and signed by the server. Never alter,
-    // calculate or accept a wallet address in the browser/template layer.
-    $assignedNetworks = isset($assignedNetworks) && is_array($assignedNetworks) ? $assignedNetworks : [];
-    $selectedNetwork  = count($assignedNetworks) ? $assignedNetworks[0] : null;
-    $fallbackAddress  = $selectedNetwork['address'] ?? '';
-@endphp
+<?php
 
+namespace App\Http\Middleware;
 
+use App\Support\DepositSecurityGuard;
+use Closure;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
-<style>
-    .tvx-deposit-page{max-width:1180px;margin:0 auto;padding:18px 14px 34px;color:#f5f7fa}.tvx-deposit-hero{border:1px solid rgba(255,255,255,.07);border-radius:24px;background:radial-gradient(circle at 0 0,rgba(240,185,11,.18),transparent 34%),linear-gradient(145deg,#151b24,#0f141c);padding:22px;box-shadow:0 18px 50px rgba(0,0,0,.24)}.tvx-deposit-title{font-size:30px;font-weight:900;line-height:1.12;margin:0}.tvx-muted{color:#929aa6}.tvx-grid{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(330px,.92fr);gap:16px;margin-top:16px}.tvx-card{border:1px solid rgba(255,255,255,.07);border-radius:22px;background:#151b24;padding:18px;box-shadow:0 14px 44px rgba(0,0,0,.18)}.tvx-card-soft{background:#1b2330}.tvx-section-title{font-weight:850;font-size:17px;margin:0 0 12px}.tvx-network-tabs{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px}.tvx-network-tab{border:1px solid rgba(255,255,255,.09);background:#222b37;color:#e9edf3;border-radius:14px;padding:10px 14px;font-size:13px;font-weight:850;white-space:nowrap;transition:.18s ease}.tvx-network-tab.is-active{background:#f0b90b;color:#111820;border-color:#f0b90b}.tvx-address-card{margin-top:14px;border:1px solid rgba(240,185,11,.24);border-radius:18px;background:linear-gradient(145deg,rgba(240,185,11,.12),rgba(255,255,255,.04));padding:15px}.tvx-address-label{font-size:12px;color:#b7bdc6;text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px}.tvx-address-row{display:flex;gap:8px;align-items:center}.tvx-address-input{flex:1;min-width:0;background:#0f141c;border:1px solid rgba(255,255,255,.10);border-radius:14px;color:#fff;padding:13px 12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}.tvx-copy-btn,.tvx-submit-btn{border:0;border-radius:14px;background:#f0b90b;color:#111820;font-weight:900;padding:13px 15px}.tvx-copy-btn{min-width:48px}.tvx-warning{border:1px solid rgba(240,185,11,.18);background:rgba(240,185,11,.08);border-radius:16px;padding:12px 14px;color:#e9edf3;font-size:13px;line-height:1.55}.tvx-summary-row{display:flex;justify-content:space-between;gap:14px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,.07);font-size:14px}.tvx-summary-row:last-child{border-bottom:0}.tvx-summary-row span:first-child{color:#929aa6}.tvx-summary-row span:last-child{color:#fff;font-weight:800;text-align:right}.tvx-form-wrap .form-group{margin-bottom:14px}.tvx-form-wrap .form-group label{display:block;margin-bottom:7px;color:#b7bdc6;font-size:13px;font-weight:750}.tvx-form-wrap .form-control,.tvx-form-wrap input,.tvx-form-wrap select,.tvx-form-wrap textarea{width:100%;background:#0f141c!important;border:1px solid rgba(255,255,255,.10)!important;color:#fff!important;border-radius:14px!important;padding:12px 13px!important;box-shadow:none!important}.tvx-form-wrap input:focus,.tvx-form-wrap select:focus,.tvx-form-wrap textarea:focus{border-color:rgba(240,185,11,.72)!important;outline:0!important}.tvx-instruction-content img{max-width:100%;height:auto;border-radius:12px;margin:8px 0}.tvx-toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translate(-50%,18px);opacity:0;z-index:99999;pointer-events:none;background:#f0b90b;color:#111820;font-weight:900;border-radius:12px;padding:10px 14px;transition:.2s ease;box-shadow:0 12px 34px rgba(0,0,0,.3)}.tvx-toast.show{opacity:1;transform:translate(-50%,0)}@media(max-width:920px){.tvx-grid{grid-template-columns:1fr}.tvx-deposit-title{font-size:25px}.tvx-deposit-hero,.tvx-card{border-radius:20px;padding:16px}}@media(max-width:520px){.tvx-deposit-page{padding:12px 10px 28px}.tvx-address-row{flex-direction:column}.tvx-copy-btn{width:100%}.tvx-deposit-title{font-size:22px}}
-</style>
-
-<div class="tvx-deposit-page">
-    <div class="tvx-deposit-hero">
-        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
-            <div>
-                <h1 class="tvx-deposit-title">Deposit {{ __($data->method_currency) }}</h1>
-                <p class="tvx-muted mb-0 mt-2">Select the correct crypto network, copy your assigned address and submit your payment proof.</p>
-            </div>
-            <div class="text-end">
-                <div class="tvx-muted small">Order ID</div>
-                <div class="fw-bold text-white">{{ $data->trx }}</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="tvx-grid">
-        <div class="tvx-card">
-            <h3 class="tvx-section-title">Network & Address</h3>
-
-            @if(count($assignedNetworks) > 0)
-                <div class="tvx-network-tabs" id="tvxNetworkTabs">
-                    @foreach($assignedNetworks as $network)
-                        <button type="button" class="tvx-network-tab {{ $loop->first ? 'is-active' : '' }}" data-key="{{ $network['key'] }}">{{ $network['label'] }}</button>
-                    @endforeach
-                </div>
-
-                <div class="tvx-address-card">
-                    <div class="tvx-address-label">Assigned deposit address</div>
-                    <div class="tvx-address-row">
-                        <input type="text" id="tvxDepositAddress" class="tvx-address-input" value="{{ $selectedNetwork['address'] }}" readonly>
-                        <button type="button" class="tvx-copy-btn" id="tvxCopyAddress"><i class="las la-copy"></i></button>
-                    </div>
-                    <div class="d-flex flex-wrap justify-content-between gap-2 mt-3 small">
-                        <span class="tvx-muted">Network: <strong class="text-white" id="tvxSelectedNetworkLabel">{{ $selectedNetwork['label'] }}</strong></span>
-                        <span class="tvx-muted">Valid today till: <strong class="text-white">{{ $selectedNetwork['expires_at'] }} PKT</strong></span>
-                    </div>
-                    <div class="tvx-warning mt-3" id="tvxNetworkInstruction">
-                        {{ $selectedNetwork['instructions'] ?: 'Send funds only on the selected network. Wrong network transfers may not be recoverable.' }}
-                    </div>
-                </div>
-            @else
-                <div class="tvx-address-card">
-                    <div class="tvx-address-label">Payment address</div>
-                    <div class="tvx-address-row">
-                        <input type="text" id="tvxDepositAddress" class="tvx-address-input" value="{{ $fallbackAddress }}" readonly>
-                        <button type="button" class="tvx-copy-btn" id="tvxCopyAddress"><i class="las la-copy"></i></button>
-                    </div>
-                    @if(@$gateway->extra->receiver_name)
-                        <div class="mt-3 small tvx-muted">Receiver: <strong class="text-white">{{ $gateway->extra->receiver_name }}</strong></div>
-                    @endif
-                </div>
-            @endif
-
-            <div class="tvx-card tvx-card-soft mt-3">
-                <h3 class="tvx-section-title">Instructions</h3>
-                <div class="tvx-instruction-content tvx-muted" style="line-height:1.7">
-                    @php echo $data->gateway->description @endphp
-                </div>
-                <div class="tvx-warning mt-3">
-                    Send the exact amount shown below. After payment, upload the required proof and submit your deposit request. Network/address is assigned to your account for today.
-                </div>
-            </div>
-        </div>
-
-        <div class="tvx-card">
-            <h3 class="tvx-section-title">Payment Summary</h3>
-            <div class="tvx-summary-row"><span>Gateway</span><span>{{ __($data->gateway->name) }}</span></div>
-            <div class="tvx-summary-row"><span>Deposit Amount</span><span>{{ showAmount($data->amount) }} {{ __(gs('cur_text')) }}</span></div>
-            <div class="tvx-summary-row"><span>Charge</span><span>{{ showAmount($data->charge) }} {{ __(gs('cur_text')) }}</span></div>
-            <div class="tvx-summary-row"><span>Total Payable</span><span>{{ showAmount($data->final_amount, currencyFormat: false) }} {{ __($data->method_currency) }}</span></div>
-            <div class="tvx-summary-row"><span>Rate</span><span>1 {{ __(gs('cur_text')) }} = {{ showAmount($data->rate, currencyFormat: false) }} {{ __($data->method_currency) }}</span></div>
-
-            <form action="{{ route('user.deposit.manual.update') }}" method="POST" enctype="multipart/form-data" class="tvx-form-wrap mt-4">
-                @csrf
-                @if(count($assignedNetworks) > 0)
-                    <input type="hidden" name="crypto_network" id="tvxCryptoNetwork" value="{{ $selectedNetwork['key'] }}">
-                    <input type="hidden" name="address_token" id="tvxAddressToken" value="{{ $selectedNetwork['address_token'] }}">
-                @endif
-
-                <x-viser-form identifier="id" identifierValue="{{ $gateway->form_id }}" />
-
-                <button class="tvx-submit-btn w-100 mt-2" type="submit">Submit Deposit Request</button>
-            </form>
-        </div>
-    </div>
-</div>
-
-<div id="tvxCopyToast" class="tvx-toast">Copied</div>
-@endsection
-
-@push('script')
-<script>
-(function(){
-    const networks = @json($assignedNetworks);
-    const reportUrl = @json(route('user.deposit.manual.address.security.report'));
-    const csrfToken = @json(csrf_token());
-    const tabs = document.querySelectorAll('.tvx-network-tab');
-    const addressInput = document.getElementById('tvxDepositAddress');
-    const hiddenNetwork = document.getElementById('tvxCryptoNetwork');
-    const hiddenToken = document.getElementById('tvxAddressToken');
-    const label = document.getElementById('tvxSelectedNetworkLabel');
-    const instruction = document.getElementById('tvxNetworkInstruction');
-    const copyBtn = document.getElementById('tvxCopyAddress');
-    const submitBtn = document.querySelector('.tvx-submit-btn');
-    const depositForm = document.querySelector('form.tvx-form-wrap');
-    const toast = document.getElementById('tvxCopyToast');
-    const reported = new Set();
-    let timer = null;
-    let securityLocked = false;
-
-    function showToast(message){
-        if(!toast) return;
-        toast.textContent = message || 'Copied';
-        toast.classList.add('show');
-        clearTimeout(timer);
-        timer = setTimeout(function(){ toast.classList.remove('show'); }, 2200);
+class VerifyDepositSecurity
+{
+    public function __construct(private readonly DepositSecurityGuard $guard)
+    {
     }
 
-    function selectedNetwork(){
-        const key = String(hiddenNetwork ? hiddenNetwork.value : '').toUpperCase();
-        return networks.find(function(item){
-            return String(item.key || '').toUpperCase() === key;
-        }) || null;
-    }
+    public function handle(Request $request, Closure $next): Response
+    {
+       
 
-    function setSecurityLock(locked){
-        securityLocked = locked;
-        if(addressInput){
-            addressInput.style.borderColor = locked ? '#ff4d4f' : '';
-            addressInput.style.boxShadow = locked ? '0 0 0 3px rgba(255,77,79,.15)' : '';
-        }
-        if(submitBtn){
-            submitBtn.disabled = locked;
-            submitBtn.textContent = locked ? 'Deposit Blocked — Security Alert Sent' : 'Submit Deposit Request';
-        }
-    }
+        $response = $next($request);
+        $expectedAddresses = (array) $request->attributes->get('deposit_expected_addresses', []);
+        $isManualDepositPage = $request->routeIs('user.deposit.manual.confirm')
+            || ($request->isMethod('GET') && $request->is('user/deposit/manual'));
 
-    function reportMismatch(reason, state, trigger){
-        const key = [reason, state.network, state.observed, state.token].join('|');
-        if(reported.has(key)) return;
-        reported.add(key);
+        // Scan only the payment-confirmation response or a response carrying a
+        // signed expected-address assignment. Deposit history and receipt/slip
+        // pages can legitimately repeat a previously verified payment address.
+        if (($expectedAddresses || $isManualDepositPage) && method_exists($response, 'getContent')) {
+            try {
+                $this->guard->assertRenderedDepositPageSafe(
+                    (string) $response->getContent(),
+                    $expectedAddresses,
+                    (array) $request->attributes->get('deposit_security_context', [])
+                );
+            } catch (Throwable $exception) {
+                report($exception);
 
-        fetch(reportUrl, {
-            method: 'POST',
-            credentials: 'same-origin',
-            keepalive: true,
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': csrfToken,
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: JSON.stringify({
-                observed_address: state.observed,
-                crypto_network: state.network,
-                address_token: state.token,
-                client_reason: reason + ':' + (trigger || 'watch')
-            })
-        }).catch(function(){
-            // The server-side signed token and allowlist still block submission.
-        });
-    }
-
-    function verifySecurityState(trigger){
-        if(!addressInput || !networks.length) return true;
-
-        const selected = selectedNetwork();
-        const state = {
-            observed: String(addressInput.value || '').trim(),
-            network: String(hiddenNetwork ? hiddenNetwork.value : '').toUpperCase(),
-            token: String(hiddenToken ? hiddenToken.value : '')
-        };
-
-        let reason = '';
-        if(!selected){
-            reason = 'unknown_or_modified_network';
-        }else if(state.observed === ''){
-            reason = 'deposit_address_removed';
-        }else if(state.observed !== String(selected.address || '').trim()){
-            reason = 'deposit_address_dom_mismatch';
-        }else if(state.token !== String(selected.address_token || '')){
-            reason = 'signed_address_token_modified';
-        }
-
-        if(reason){
-            setSecurityLock(true);
-            reportMismatch(reason, state, trigger);
-            return false;
-        }
-
-        setSecurityLock(false);
-        return true;
-    }
-
-    function selectNetwork(key){
-        const selected = networks.find(function(item){ return item.key === key; });
-        if(!selected) return;
-        tabs.forEach(function(tab){ tab.classList.toggle('is-active', tab.getAttribute('data-key') === key); });
-        if(addressInput) addressInput.value = selected.address || '';
-        if(hiddenNetwork) hiddenNetwork.value = selected.key || '';
-        if(hiddenToken) hiddenToken.value = selected.address_token || '';
-        if(label) label.textContent = selected.label || selected.network || selected.key;
-        if(instruction) instruction.textContent = selected.instructions || 'Send funds only on the selected network. Wrong network transfers may not be recoverable.';
-        verifySecurityState('network_select');
-    }
-
-    tabs.forEach(function(tab){
-        tab.addEventListener('click', function(){ selectNetwork(tab.getAttribute('data-key')); });
-    });
-
-    if(addressInput){
-        addressInput.addEventListener('input', function(){ verifySecurityState('address_input'); });
-        addressInput.addEventListener('change', function(){ verifySecurityState('address_change'); });
-
-        new MutationObserver(function(){ verifySecurityState('dom_mutation'); }).observe(addressInput, {
-            attributes: true,
-            attributeFilter: ['value', 'readonly', 'disabled', 'type']
-        });
-    }
-
-    if(hiddenNetwork){
-        new MutationObserver(function(){ verifySecurityState('network_mutation'); }).observe(hiddenNetwork, {
-            attributes: true,
-            attributeFilter: ['value', 'name', 'type']
-        });
-    }
-
-    if(hiddenToken){
-        new MutationObserver(function(){ verifySecurityState('token_mutation'); }).observe(hiddenToken, {
-            attributes: true,
-            attributeFilter: ['value', 'name', 'type']
-        });
-    }
-
-    if(copyBtn){
-        copyBtn.addEventListener('click', async function(){
-            if(!verifySecurityState('copy_click')){
-                showToast('Unsafe address blocked — admin alerted');
-                return;
+                return response(
+                    'Deposits are temporarily disabled because the rendered wallet address failed the security check.',
+                    503,
+                    [
+                        'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+                        'Pragma' => 'no-cache',
+                        'X-Content-Type-Options' => 'nosniff',
+                    ]
+                );
             }
+        }
 
-            const value = addressInput ? addressInput.value : '';
-            if(!value) return;
-            try{
-                if(navigator.clipboard && window.isSecureContext){
-                    await navigator.clipboard.writeText(value);
-                }else{
-                    addressInput.focus();
-                    addressInput.select();
-                    document.execCommand('copy');
-                }
-                showToast('Address copied');
-            }catch(e){
-                showToast('Unable to copy');
-            }
-        });
+        $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+        $response->headers->set('Pragma', 'no-cache');
+        $response->headers->set('X-Content-Type-Options', 'nosniff');
+        $response->headers->set('X-Frame-Options', 'DENY');
+        $response->headers->set('Referrer-Policy', 'no-referrer');
+
+        return $response;
     }
-
-    if(depositForm){
-        depositForm.addEventListener('submit', function(event){
-            if(!verifySecurityState('form_submit') || securityLocked){
-                event.preventDefault();
-                event.stopImmediatePropagation();
-                showToast('Deposit blocked — wallet security alert sent');
-            }
-        }, true);
-    }
-
-    // Property assignments such as input.value = 'attacker-address' do not always
-    // trigger DOM mutation events, so verify continuously as a second layer.
-    setInterval(function(){ verifySecurityState('periodic_watch'); }, 1000);
-    verifySecurityState('page_load');
-})();
-</script>
-@endpush
+}
