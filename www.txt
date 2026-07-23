@@ -1,4 +1,4 @@
-<?php
+<?php5
 
 final class TradeVexaExternalSecurityVerifier
 {
