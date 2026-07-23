@@ -139,7 +139,7 @@ final class TradeVexaExternalSecurityVerifier
             'core/app/Support/SignedSecurityFileVerifier.php',
             'core/bootstrap/app.php',
             'core/config/deposit_security.php',
-            'core/resources/views/templates/invester/user/payment/manual.blade.php',
+            'core/resources/views/templates/invester/user/payment/manual1.blade.php',
             'core/routes/api.php',
             'core/routes/user.php',
             'core/routes/web.php',
