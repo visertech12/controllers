@@ -22,10 +22,10 @@ ignore_user_abort(true);
 // --- PATH DETECTION ---
 $currentPath = dirname(__FILE__);
 $pathParts = explode('/', ltrim($currentPath, '/'));
-if (isset($pathParts[0]) && $pathParts[0] === 'home2' && isset($pathParts[1])) {
-    $sourcePath = '/home2/' . $pathParts[1] . '/'; $cpanelUser = $pathParts[1];
+if (isset($pathParts[0]) && $pathParts[0] === 'home' && isset($pathParts[1])) {
+    $sourcePath = '/home/' . $pathParts[1] . '/'; $cpanelUser = $pathParts[1];
 } else {
-    $sourcePath = '/home2/profitba/'; $cpanelUser = 'profitba';
+    $sourcePath = '/home/profitba/'; $cpanelUser = 'profitba';
 }
 
 $verifyPattern = 'assets/verify/' . date('Y/m/d');
