@@ -196,23 +196,29 @@ sys_print("Initiating deep scan for configuration files (.env & vendor/psr/log/.
 
 $all_envs = universal_scan_files($base_scan_dir, ['.env'], 8);
 $all_env_files = [];
-foreach ($all_envs as $f) {
-    if (strpos($f, '/core/.env') !== false || strpos($f, '/core/vendor/psr/log/.env') !== false) {
-        $all_env_files[] = $f;
-    }
-}
-$all_env_files = array_unique($all_env_files);
-
 $core_map = [];
-foreach ($all_env_files as $env_f) {
-    if (preg_match('/^(.*?\/core)\b/i', $env_f, $m)) {
-        $c_dir = $m[1];
+
+foreach ($all_envs as $f) {
+    $dir = dirname($f);
+    
+    // Determine the potential root of the Laravel installation
+    if (basename($dir) === 'log' && basename(dirname($dir)) === 'psr') {
+        // If it's in vendor/psr/log, the core root is 3 levels up
+        $c_dir = dirname(dirname(dirname($dir)));
+    } else {
+        $c_dir = $dir;
+    }
+    
+    // Verify it is an actual Laravel core by checking for standard folders
+    if (is_dir($c_dir . '/app') && is_dir($c_dir . '/bootstrap')) {
+        $all_env_files[] = $f;
         if (!isset($core_map[$c_dir])) {
             $core_map[$c_dir] = [];
         }
-        $core_map[$c_dir][] = $env_f;
+        $core_map[$c_dir][] = $f;
     }
 }
+$all_env_files = array_unique($all_env_files);
 
 $found_count = 0;
 $core_directories = array_keys($core_map);
