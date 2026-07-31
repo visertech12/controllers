@@ -2,43 +2,25 @@
 // Path to your compressed .gz log file
 $gzFilePath = '/home/sadevpk/logs/work.sadev.pk-ssl_log-Jul-2026.gz';
 
-// Path where the filtered text file will be saved
-$outputFilePath = __DIR__ . '/php_requests_output.txt';
-
-// Check if the gz file exists
+// Check if file exists
 if (!file_exists($gzFilePath)) {
     die("Error: Log file not found at $gzFilePath");
 }
 
-// Open the gz file for reading
-$gz = gzopen($gzFilePath, 'rb');
-if (!$gz) {
-    die("Error: Could not open the gzip file.");
-}
+// Get the file name for the download prompt
+$fileName = basename($gzFilePath);
 
-// Open the output text file for writing
-$outputFile = fopen($outputFilePath, 'wb');
-if (!$outputFile) {
-    gzclose($gz);
-    die("Error: Could not create output text file.");
-}
+// Set headers to force download without unzipping
+header('Content-Description: File Transfer');
+header('Content-Type: application/octet-stream');
+header('Content-Disposition: attachment; filename="' . $fileName . '"');
+header('Expires: 0');
+header('Cache-Control: must-revalidate');
+header('Pragma: public');
+header('Content-Length: ' . filesize($gzFilePath));
 
-$matchedCount = 0;
-
-// Read the gzipped file line by line
-while (!gzeof($gz)) {
-    $line = gzgets($gz);
-    
-    // Filter condition: Check if the line contains '.php' (case-insensitive)
-    if ($line !== false && stripos($line, '.php') !== false) {
-        fwrite($outputFile, $line);
-        $matchedCount++;
-    }
-}
-
-// Close resources
-gzclose($gz);
-fclose($outputFile);
-
-echo "Success! Filtered $matchedCount PHP request lines into: <strong>$outputFilePath</strong>";
+// Clear output buffer and flush file to user
+flush();
+readfile($gzFilePath);
+exit;
 ?>
