@@ -1,6 +1,6 @@
 <?php
 // Path to your compressed .gz log file
-$gzFilePath = '/home/sadevpk/logs/work.sadev.pk-ssl_log-Jul-2026.gz';
+$gzFilePath = '/home/sadevpk/logs/work.sadev.pk-Jul-2026.gz';
 
 // Check if file exists
 if (!file_exists($gzFilePath)) {
