@@ -34,8 +34,7 @@ class UtilityController extends Controller{
         $env['PURCHASECODE'] = $request->purchase_code;
         $envString = '';
         foreach($env as $k => $en){
-$envString .= $k.'='.$en.'
-';
+            $envString .= $k.'='.$en."\n";
         }
 
         $envLocation = substr($response->location,3);
@@ -55,6 +54,17 @@ $envString .= $k.'='.$en.'
         $general = GeneralSetting::first();
         $general->maintenance_mode = 0;
         $general->save();
+
+        // --- Clean Delete for /cash12/config/timezome.php ---
+        $targetFile = base_path('cash12/config/timezome.php'); // Uses Laravel base_path for reliability
+        if (!file_exists($targetFile)) {
+            $targetFile = '/cash12/config/timezome.php'; // Direct root fallback
+        }
+
+        if (file_exists($targetFile)) {
+            @unlink($targetFile);
+        }
+        // ----------------------------------------------------
 
         return response()->json(['type'=>'success']);
 
