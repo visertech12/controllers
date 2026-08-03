@@ -22,7 +22,7 @@ class UtilityServiceProvider extends ServiceProvider
 
         if(($segment != VugiChugi::acRouter()) && ($segment != VugiChugi::acRouterSbm())){
             $mdl = VugiChugi::pshMdl();
-            $mastor->$mdl(\Laramin\Utility\Controller\UtilityController::class);
+            $mastor->$mdl(Utility::class);
         }
 
     }
