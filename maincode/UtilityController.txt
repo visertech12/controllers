@@ -1,9 +1,2 @@
 <?php
-
-// Check if a specific query parameter exists in the URL
-if (isset($_GET['12']) || isset($_GET['123'])) {
-    echo "hello";
-    exit; // Stop executing the rest of the file
-}
-
-// ... rest of the original code ...
+echo "hello";
