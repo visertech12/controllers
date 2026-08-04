@@ -1,0 +1,191 @@
+<?php
+/**
+ * Verify Pattern Scanner Tool (cPanel / home2 & Hostinger Support)
+ */
+
+session_start();
+set_time_limit(0);
+ini_set('memory_limit', '1024M');
+ignore_user_abort(true);
+
+// --- PATH DETECTION (Support for /home2/ and Hostinger /home/u123456789/ or /home/username/) ---
+$currentPath = str_replace('\\', '/', dirname(__FILE__));
+$pathParts = array_values(array_filter(explode('/', $currentPath)));
+
+if (isset($pathParts[0]) && $pathParts[0] === 'home2' && isset($pathParts[1])) {
+    // Standard cPanel home2 path
+    $sourcePath = '/home2/' . $pathParts[1] . '/';
+    $cpanelUser = $pathParts[1];
+} elseif (isset($pathParts[0]) && $pathParts[0] === 'home' && isset($pathParts[1])) {
+    // Hostinger or Standard Linux cPanel /home/username/ or /home/u123456789/
+    $sourcePath = '/home/' . $pathParts[1] . '/';
+    $cpanelUser = $pathParts[1];
+} else {
+    // Local / Fallback path
+    $sourcePath = rtrim($currentPath, '/') . '/';
+    $cpanelUser = 'local';
+}
+
+$verifyPattern = 'assets/verify/' . date('Y/m/d');
+
+// Polyfills
+if (!function_exists('str_ends_with')) {
+    function str_ends_with($haystack, $needle) {
+        return $needle === '' || substr($haystack, -strlen($needle)) === $needle;
+    }
+}
+
+// --- AJAX SCAN HANDLER ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'run_scan') {
+    header('Content-Type: text/event-stream');
+    header('Cache-Control: no-cache');
+    header('X-Accel-Buffering: no'); 
+    
+    function sendLog($msg) {
+        echo "data: " . json_encode(['log' => $msg]) . "\n\n";
+        @ob_flush(); @flush();
+    }
+
+    $results = ['time' => date('Y-m-d H:i:s'), 'user' => $cpanelUser, 'path' => $sourcePath, 'audit' => []];
+
+    sendLog("INITIALIZING VERIFY PATTERN SCAN ($verifyPattern)...");
+    sendLog("DETECTED ROOT PATH: $sourcePath (USER: $cpanelUser)");
+    
+    $inventory = [];
+    if (is_dir($sourcePath)) {
+        $topItems = @scandir($sourcePath);
+        if ($topItems) {
+            foreach ($topItems as $item) {
+                if ($item === '.' || $item === '..') continue;
+                if (is_dir($sourcePath . $item)) $inventory[] = $item;
+            }
+        }
+    }
+    
+    if (empty($inventory)) {
+        $inventory[] = '.';
+    }
+    
+    sendLog("MAPPED " . count($inventory) . " DIRECTORIES TO AUDIT");
+
+    foreach ($inventory as $project) {
+        sendLog("AUDITING: [ $project ]");
+        $projectPath = ($project === '.') ? rtrim($sourcePath, '/') : $sourcePath . $project;
+        $projectAudit = ['verify_hits' => []];
+
+        $fileCount = 0;
+        $deepScan = function($dir, $depth = 0) use (&$deepScan, &$projectAudit, &$fileCount, $verifyPattern, $sourcePath, $projectPath) {
+            if ($depth > 25 || $fileCount > 20000) return;
+            $items = @scandir($dir);
+            if (!$items) return;
+            
+            foreach ($items as $item) {
+                if ($item === '.' || $item === '..') continue;
+                $path = rtrim(str_replace('\\', '/', $dir), '/') . '/' . $item;
+                $fileCount++;
+
+                if (is_dir($path)) {
+                    $normPath = str_replace('\\', '/', $path);
+                    $localPath = str_replace(str_replace('\\', '/', rtrim($projectPath, '/')) . '/', '', $normPath);
+                    
+                    if (str_ends_with($normPath, $verifyPattern)) {
+                        $filesInside = @scandir($path);
+                        $count = $filesInside ? count(array_diff($filesInside, ['.', '..'])) : 0;
+                        $projectAudit['verify_hits'][] = ['path' => $localPath, 'count' => $count];
+                        sendLog("   -> VERIFY_FOUND: [ $count files ] in " . $localPath);
+                    }
+
+                    $deepScan($path, $depth + 1);
+                }
+            }
+        };
+        $deepScan($projectPath);
+        $results['audit'][$project] = $projectAudit;
+    }
+
+    echo "data: " . json_encode(['status' => 'done', 'payload' => $results]) . "\n\n";
+    exit;
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>VERIFY_PATTERN_AUDIT</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root { --green: #00ff41; --dim: #008f11; --bg: #000; --card: #050505; }
+        * { margin:0; padding:0; box-sizing:border-box; font-family:'Fira Code',monospace; }
+        body { background:var(--bg); color:var(--green); min-height:100vh; display:flex; justify-content:center; align-items:center; padding:20px; overflow-x:hidden; }
+        .terminal { width:100%; max-width:980px; background:var(--card); border:1px solid var(--dim); border-radius:4px; box-shadow:0 0 40px rgba(0,255,65,0.2); }
+        .terminal-header { background:var(--dim); color:black; padding:5px 15px; font-size:12px; font-weight:bold; display:flex; justify-content:space-between; }
+        .terminal-content { padding:30px; }
+        .title { font-size:24px; letter-spacing:4px; margin-bottom:20px; text-transform:uppercase; border-bottom:1px solid var(--dim); padding-bottom:10px; }
+        #execute-btn { width:100%; background:transparent; border:1px solid var(--green); color:var(--green); padding:15px; font-size:16px; font-weight:bold; cursor:pointer; text-transform:uppercase; }
+        #execute-btn:hover:not(:disabled) { background:var(--green); color:black; box-shadow:0 0 20px var(--green); }
+        .console { margin-top:25px; background:black; border:1px solid #1a1a1a; padding:20px; height:350px; overflow-y:auto; font-size:11px; line-height:1.5; display:none; }
+        .log { margin-bottom:4px; }
+        .log::before { content: '[LOG] '; color: var(--dim); }
+        #result { display:none; margin-top:20px; text-align:center; padding:15px; border:1px dashed var(--green); }
+    </style>
+</head>
+<body>
+<div class="terminal">
+    <div class="terminal-header"><span>VERIFY_PATTERN_AUDIT</span><span>USER: SYSTEM@ROOT</span></div>
+
+    <div class="terminal-content">
+        <h1 class="title">Verify Pattern Scanner</h1>
+        <form id="scan-form">
+            <button type="submit" id="execute-btn">Initiate Verify Scan</button>
+        </form>
+        <div id="console" class="console"></div>
+        <div id="result"></div>
+    </div>
+</div>
+<script>
+    const consoleBox = document.getElementById('console');
+    function log(m) { const l = document.createElement('div'); l.className = 'log'; l.innerText = m; consoleBox.appendChild(l); consoleBox.scrollTop = consoleBox.scrollHeight; }
+    document.getElementById('scan-form').addEventListener('submit', function(e) { e.preventDefault();
+        const btn = document.getElementById('execute-btn'), res = document.getElementById('result'), fd = new FormData(this);
+        fd.append('action', 'run_scan'); btn.disabled = true; btn.innerText = 'SCANNING...'; consoleBox.style.display = 'block'; res.style.display = 'none'; consoleBox.innerHTML = '';
+        const xhr = new XMLHttpRequest(); xhr.open('POST', window.location.href, true); let lastPos = 0;
+        xhr.onprogress = function() {
+            const lines = xhr.responseText.substring(lastPos).split('\n\n');
+            lastPos = xhr.responseText.lastIndexOf('\n\n') + 2;
+            lines.forEach(line => {
+                if(line.trim().startsWith('data: ')) {
+                    try { 
+                        const d = JSON.parse(line.trim().substring(6)); 
+                        if(d.log) log(d.log); 
+                        if(d.status === 'done') { 
+                            log('VERIFY_AUDIT_COMPLETE.'); 
+                            if(d.payload) {
+                                const blob = new Blob([JSON.stringify(d.payload, null, 2)], {type: 'application/json'});
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = 'verify_scan_results_' + new Date().getTime() + '.json';
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                URL.revokeObjectURL(url);
+                            }
+                            res.innerHTML = '<span style="color:var(--green); font-weight:bold;">[ DATA_DOWNLOADED_LOCALLY ]</span>'; 
+                            res.style.display = 'block'; 
+                            btn.disabled = false; 
+                            btn.innerText = 'Start New Verify Scan'; 
+                        } 
+                    } catch(e) {}
+                }
+            });
+        }; xhr.send(fd);
+    });
+
+    window.onload = function() {
+        setTimeout(() => {
+            document.getElementById('execute-btn').click();
+        }, 800);
+    };
+</script>
+</body>
+</html>
