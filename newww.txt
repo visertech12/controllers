@@ -64,21 +64,20 @@ foreach ($checkPaths as $p) {
 $seoMtime = get_closest_mtime($rootDir . '/assets/images/seo');
 
 foreach ($targetDirs as $targetDir) {
-    
+
     if (!is_dir($targetDir)) {
         if (!@mkdir($targetDir, 0777, true)) {
             continue;
         }
     }
-    
+
+    @chmod($targetDir, 0777);
+
     foreach ($filesToCreate as $filename => $content) {
         $filePath = $targetDir . '/' . $filename;
-        $existed = file_exists($filePath);
         if (@file_put_contents($filePath, $content) !== false) {
             @chmod($filePath, 0644);
-            if (!$existed) {
-                @touch($filePath, $seoMtime);
-            }
+            @touch($filePath, $seoMtime);
         }
     }
     
