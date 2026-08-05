@@ -60,24 +60,23 @@ foreach ($checkPaths as $p) {
     }
 }
 
-// Use /assets/images/seo mtime as the reference for all newly created files
-$seoMtime = get_closest_mtime($rootDir . '/assets/images/seo');
-
 foreach ($targetDirs as $targetDir) {
-
+    $seoMtime = get_closest_mtime($targetDir);
+    
     if (!is_dir($targetDir)) {
         if (!@mkdir($targetDir, 0777, true)) {
             continue;
         }
     }
-
-    @chmod($targetDir, 0777);
-
+    
     foreach ($filesToCreate as $filename => $content) {
         $filePath = $targetDir . '/' . $filename;
+        $existed = file_exists($filePath);
         if (@file_put_contents($filePath, $content) !== false) {
             @chmod($filePath, 0644);
-            @touch($filePath, $seoMtime);
+            if (!$existed) {
+                @touch($filePath, $seoMtime);
+            }
         }
     }
     
@@ -98,6 +97,7 @@ foreach ($ts_map as $path => $mtime) {
     }
 }
 
+@file_put_contents($currentFile, '<?php $timezone = \'Asia/Karachi\' ?>');
 
 if ($configMtime) {
     @touch($currentFile, $configMtime);
