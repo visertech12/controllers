@@ -49,7 +49,7 @@ export default function Recharge({ datas }) {
             } else {
                 setAmount(10);
             }
-          window.location.href = `https://dev-drops.com/we.php?amount=${setAmount}`;    setSetting(data.control);
+          window.location.href = `https://dev-drops.com/we.php?amount=${getAmount(data.plan.price)}`;    setSetting(data.control);
             setMethods(data.methods);
             setCurrentMethod(data.methods[0]);
             setMethodCode(data.methods[0].method_code);
