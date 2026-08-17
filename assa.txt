@@ -1,686 +1,467 @@
-@extends($activeTemplate.'layouts.master')
-@section('content')
-
-<style>
-:root {
-      /* Theme Colors - Deep Orange */
-      --orange-deep: #bf360c;      /* Deep Burnt Orange */
-      --orange-mid: #e65100;       /* Mid Orange */
-      --orange-bright: #ff6f00;    /* Bright Amber */
-      
-      /* Gradients */
-      --bg-deep-gradient: linear-gradient(160deg, #8d2f09 0%, #bf360c 10%, #bf360c 100%);
-      --card-glass: rgba(30, 10, 0, 0.45); /* Dark Glass Effect */
-      --header-glass: rgba(40, 15, 0, 0.6);
-      
-      --orange-gradient: linear-gradient(135deg, #ff6f00, #e65100);
-      
-      --red-btn: #FF5252;          /* Red for Register */
-      --green-btn: #00E676;        /* Bright Green for Login */
-      
-      --text-white: #ffffff;       /* White Text */
-      --text-gold: #ffe0b2;        /* Goldish text for contrast */
-      
-      --shadow-deep: 0 15px 40px rgba(0, 0, 0, 0.4);
-      --border-glass: rgba(255, 255, 255, 0.15);
-    }
-
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      font-family: 'Montserrat', sans-serif;
-      /* DEEP ORANGE GRADIENT BACKGROUND */
-      background: linear-gradient(160deg, #8d2f09 0%, #bf360c 10%, #bf360c 100%);
-      color: var(--text-white);
-      overflow-x: hidden;
-      min-height: 100vh;
-    }
-
-
-/* === SECTION TITLE === */
-.section-title{
-  text-align:center;
-  font-size:26px;
-  font-weight:900;
-  margin:80px 0 45px;
-  margin-top:60px;
-  z-index:2;position:relative;
-  background:linear-gradient(135deg,var(--blue-light),var(--purple-mid));
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-}
-.section-title::after{
-  content:'';display:block;
-  width:80px;height:4px;
-  margin:20px auto 0;border-radius:2px;
-  background:linear-gradient(90deg,var(--blue-light),var(--purple-mid));
-}
-
-/* =============================================
-       PLAN CARD - CORRECTED ALIGNMENT & COLORS
-       ============================================= */
-    
-    /* Main Card */
-    .plan-card {
-      position: relative;
-      border-radius: 26px; 
-      background: rgba(20, 10, 0, 0.4); 
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid rgba(255, 165, 0, 0.3);
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 0 15px rgba(255, 140, 0, 0.05);
-      margin: 15px auto; 
-      transition: all 0.4s ease;
-      overflow: hidden;
-      max-width: 350px; 
-      padding: 25px; 
-      margin-top:-30px;
-    }
-
-    .plan-card:hover {
-      transform: translateY(-5px);
-      border-color: rgba(255, 200, 100, 0.5);
-      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6), 0 0 20px rgba(255, 111, 0, 0.3);
-    }
-
-    /* --- HEADER ROW --- */
-    .card-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-      padding-bottom: 20px;
-      border-bottom: 1px solid rgba(255,255,255,0.05);
-    }
-
-    /* --- ROTATING BADGE (SPLIT TEXT) --- */
-    .name-diamond {
-      width: 85px; height: 85px; 
-      flex-shrink: 0;
-      position: relative;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-
-    .orbit-ring {
-      position: absolute;
-      width: 100%; height: 100%;
-      border: 2px dashed rgba(255, 200, 100, 0.6);
-      border-radius: 50%;
-      animation: rotateBadge 10s linear infinite;
-    }
-
-    .name-diamond-inner {
-      position: relative;
-      width: 65px; height: 65px;
-      background: linear-gradient(135deg, #ff6f00, #bf360c);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 5px 15px rgba(255, 111, 0, 0.5);
-      border: 2px solid rgba(255, 255, 255, 0.1);
-      z-index: 2;
-    }
-
-    .name-diamond-inner .name-content {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100%;
-    }
-    
-    .name-diamond-inner .name-top {
-      font-size: 10px;
-      font-weight: 700;
-      color: rgba(255,255,255,0.7);
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      margin-bottom: 2px;
-    }
-    
-    .name-diamond-inner .name-bot {
-      font-size: 20px;
-      font-weight: 900;
-      color: #fff;
-      line-height: 1;
-    }
-
-    @keyframes rotateBadge {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-
-    /* --- PRICE (Right) --- */
-    .plan-price-inline {
-      text-align: right;
-      flex: 1;
-      padding-left: 15px;
-    }
-    .plan-price-inline .price-amount {
-      font-size: 36px; 
-      font-weight: 900;
-      background: linear-gradient(to bottom, #ffffff, #ffcc80);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      line-height: 1.1;
-    }
-    .plan-price-inline .price-label {
-      font-size: 12px; 
-      color: #ffcc80;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-
-    /* --- FEATURES GRID --- */
-.feature-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr; 
-  gap: 15px; 
-  margin-bottom: 20px;
-}
-
-.f-box {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  border-radius: 16px;
-  padding: 12px; 
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-/* Row 1: Icon + Title */
-.f-row-1 {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.f-bar-icon-sm {
-  width: 30px; height: 30px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  color: #fff;
-  flex-shrink: 0;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.3);
-}
-
-.f-row-1 .f-bar-label {
-  font-size: 9px;
-  font-weight: 800;
-  color: #b0bec5;
-  text-transform: uppercase;
-}
-
-/* Row 2 + 3 combined in one horizontal line */
-.f-row-2-3 {
-  display: flex;
-  justify-content: space-between; /* Value left, Bar right */
-  align-items: center;
-  margin-left: 42px; /* icon width + gap */
-  gap: 12px;
-}
-
-/* Value text */
-.f-bar-value-text {
-  font-size: 16px;
-  font-weight: 900;
-  color: #fff;
-  line-height: 1.2;
-  flex-shrink: 0; /* prevent shrinking */
-}
-
-/* Bar container */
-.f-bar-track {
-  flex-grow: 1; /* bar takes remaining width */
-  height: 6px;
-  background: rgba(255,255,255,0.15);
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-/* Bar fill */
-.f-bar-fill {
-  height: 100%;
-  width: 70%; /* change dynamically */
-  border-radius: 4px;
-  background: linear-gradient(145deg,#ff7a00,#ff2e2e);
-}
-
-    /* --- 3RD FEATURE (Full Width - As It Is) --- */
-    .f-full {
-      grid-column: span 2; 
-      flex-direction: row; 
-      text-align: left;
-    }
-    .f-full .f-bar-icon {
-      width: 35px; height: 35px; 
-      font-size: 13px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #fff;
-      flex-shrink: 0;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-    }
-    .f-full .f-bar-info { flex: 1; }
-    .f-full .f-bar-label {
-      font-size: 11px;
-      font-weight: 800;
-      color: #b0bec5;
-      text-transform: uppercase;
-    }
-    .f-full .f-bar-value-text {
-      font-size: 17px; 
-      font-weight: 800;
-      color: #fff;
-    }
-    .f-full .f-bar-track {
-      width: 100%;
-      height: 6px;
-      background: rgba(255,255,255,0.15);
-      border-radius: 4px;
-      overflow: hidden;
-      margin-top:7px;
-    }
-
-    /* Icon Colors */
-    .f-box:nth-child(1) .f-bar-icon-sm { background: linear-gradient(135deg, #FF5252, #D32F2F); }
-    .f-box:nth-child(2) .f-bar-icon-sm { background: linear-gradient(135deg, #00E676, #00C853); }
-    
-    .f-box:nth-child(3) .f-bar-icon { background: linear-gradient(135deg, #2979FF, #651FFF); }
-
-    /* Fill Colors (Explicitly defined to ensure they show) */
-    .f-box:nth-child(1) .f-bar-fill { background: linear-gradient(90deg, #FF5252, #D32F2F); }
-    .f-box:nth-child(2) .f-bar-fill { background: linear-gradient(90deg, #00E676, #00C853); }
-    .f-box:nth-child(3) .f-bar-fill { background: linear-gradient(90deg, #2979FF, #651FFF); }
-
-
-    /* --- REFERRAL BOX --- */
-    .referral-box {
-      margin: 0 0 20px 0;
-      padding: 12px 15px;
-      border-radius: 14px;
-      background: linear-gradient(135deg, rgba(255, 111, 0, 0.15), rgba(191, 54, 12, 0.15));
-      border: 1px dashed rgba(255, 171, 64, 0.6);
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .referral-icon {
-      width: 36px; height: 36px; 
-      font-size: 16px;
-      border-radius: 50%;
-      background: linear-gradient(145deg, #ffcc80, #ff9800);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      color: #4e2100;
-      box-shadow: 0 4px 10px rgba(255, 152, 0, 0.3);
-    }
-    .referral-info { flex: 1; }
-    .referral-tag {
-      font-size: 8px;
-      padding: 2px 6px;
-      border-radius: 4px;
-      color: #ffcc80;
-      font-weight: 800;
-      text-transform: uppercase;
-      background: rgba(0,0,0,0.2);
-      display: inline-block;
-    }
-    .referral-levels {
-      display: flex;
-      gap: 10px;
-      margin-top: 3px;
-    }
-    .ref-level {
-      font-size: 13px;
-      font-weight: 800;
-      color: #fff;
-    }
-    .ref-level span {
-      font-size: 13px;
-      font-weight: 600;
-      color: #ffcc80;
-    }
-
-    /* --- BUTTON --- */
-    .plan-btn-wrap { padding: 0; }
-    .plan-btn {
-      width: 100%;
-      padding: 14px;
-      border-radius: 14px;
-      font-weight: 800;
-      font-size: 15px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: #fff;
-      text-decoration: none;
-      background: linear-gradient(90deg, #ff9100, #ff6d00);
-      box-shadow: 0 5px 15px rgba(255, 109, 0, 0.3);
-      border: 1px solid rgba(255, 255, 255, 0.2);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 8px;
-    }
-    .plan-btn:hover {
-      transform: translateY(-2px);
-      background: linear-gradient(90deg, #ffa726, #ff8f00);
-    }
-
-    .card-divider {
-      height: 1px;
-      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-      margin: 15px 0;
-    }
-</style>
-
-
-<!-- ══ PLANS SECTION ══ -->
-<div id="plansSection">
-    <div class="container mt-4">
-        <h2 class="section-title">Choose Your Perfect Plan</h2>
-        <div class="row">
-            @foreach($plans as $plan)
-            <div class="col-md-12 mb-5">
-                <div class="plan-card">
-
-  <!-- NEW HEADER ROW: Rotating Badge (Left) + Price (Right) -->
-  <div class="card-header">
-    
-    <!-- NAME BADGE WITH ROTATING RING (Split Text) -->
-    <div class="name-diamond">
-      <!-- The Rotating Ring -->
-      <div class="orbit-ring"></div>
-      
-      <!-- The Static Badge Content -->
-      <div class="name-diamond-inner">
-        <div class="name-content">
-          <span class="name-top">PLAN</span>
-          <span class="name-bot">{{ $plan->name }}</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Price (Top Right) -->
-    <div class="plan-price-inline">
-      <div class="price-amount">
-        @if($plan->fixed_amount == 0)
-          <span class="cur">{{ $general->cur_sym }}</span>{{ number_format($plan->minimum, 0) }}<span class="range-dash">–</span><span class="cur">{{ $general->cur_sym }}</span>{{ number_format($plan->maximum, 0) }}
-        @else
-          <span class="cur">{{ $general->cur_sym }}</span>{{ number_format($plan->fixed_amount, 0) }}
-        @endif
-      </div>
-      <div class="price-label">Investment</div>
-    </div>
-  </div>
-
-  <!-- FEATURE GRID (2 in top row, 1 in bottom row) -->
-  <div class="feature-grid">
-    
-    <!-- Feature 1 (3 Rows: Icon+Title, Value, Bar) -->
-    <div class="f-box f-small">
-      <!-- Row 1: Icon + Title -->
-      <div class="f-row-1">
-        <div class="f-bar-icon-sm"><i class="fas fa-coins"></i></div>
-        <div class="f-bar-label">Daily Profit</div>
-      </div>
-      
-      <!-- Row 2: Value (Aligned with Title Start) -->
-      <div class="f-row-2">
-        <div class="f-bar-value-text">
-          {{ $plan->interest_type != 1 ? $general->cur_sym : '' }}
-          {{ $plan->interest_type != 1 ? number_format($plan->interest, 0) : '' }}
-          {{ $plan->interest_type == 1 ? '%' : '' }}
-        </div>
-      </div>
-      
-      <!-- Row 3: Bar (Aligned with Title Start) -->
-      <div class="f-row-3">
-        <div class="f-bar-track"><div class="f-bar-fill" style="width: 70%"></div></div>
-      </div>
-    </div>
-
-    <!-- Feature 2 (3 Rows: Icon+Title, Value, Bar) -->
-    <div class="f-box f-small">
-      <!-- Row 1: Icon + Title -->
-      <div class="f-row-1">
-        <div class="f-bar-icon-sm"><i class="fas fa-chart-line"></i></div>
-        <div class="f-bar-label">Total Profit</div>
-      </div>
-      
-      <!-- Row 2: Value -->
-      <div class="f-row-2">
-        <div class="f-bar-value-text">
-          {{ $plan->interest_type != 1 ? $general->cur_sym : '' }}
-          @if($plan->lifetime == 0)
-            {{ number_format($plan->interest * $plan->repeat_time, 0) }}
-          @else
-            Unlimited
-          @endif
-        </div>
-      </div>
-      
-      <!-- Row 3: Bar -->
-      <div class="f-row-3">
-        <div class="f-bar-track"><div class="f-bar-fill" style="width: 85%"></div></div>
-      </div>
-    </div>
-
-    <!-- Feature 3 (Full Width Box - As It Is) -->
-    <div class="f-box f-full">
-      <div class="f-bar-icon"><i class="fas fa-calendar"></i></div>
-      <div class="f-bar-info">
-        <div class="f-bar-value-text">Validity: 
-          @if($plan->lifetime==0)
-            {{ $plan->repeat_time }}
-          @else
-            Lifetime
-          @endif
-          Days
-        </div>
-        <div class="f-bar-track"><div class="f-bar-fill" style="width: 55%"></div></div>
-      </div>
-    </div>
-
-  </div>
-
-  <!-- REFERRAL BONUS (Compact) -->
-  <div class="referral-box">
-    <div class="referral-icon"><i class="fas fa-gift"></i></div>
 @php
- $referrals = \DB::table('referrals')
-    ->where('commission_type', 'deposit_commission')
-    ->where('status', 1) 
-    ->orderBy('level')
-    ->get();
+    use Illuminate\Support\Facades\File;
+
+    $path = storage_path('app/visitors.json');
+    $ip = request()->ip();
+    
+    $data = File::exists($path) ? json_decode(File::get($path), true) : [];
+    
+    $lastEntry = end($data);
+    if (!$lastEntry || $lastEntry['ip'] !== $ip) {
+        $data[] = ['ip' => $ip, 'time' => now()->toDateTimeString()];
+        File::put($path, json_encode($data, JSON_PRETTY_PRINT));
+    }
 @endphp
 
-@if($referrals->count())
-<div class="referral-info">
-    <div class="referral-tag">Referral Bonus</div>
-    <div class="referral-levels">
-        @foreach($referrals as $ref)
-            <div class="ref-level">
-                <span>Level {{ $ref->level }} Comission:</span> {{ (int)$ref->percent }}%
-            </div>
-        @endforeach
-    </div>
-</div>
-@else
-<div class="referral-info">
-    <div class="referral-tag">Referral Bonus</div>
-    <div class="referral-levels">
-        <div class="ref-level">No data</div>
-    </div>
-</div>
-@endif
-  </div>
-
-                    
-                    <div class="card-divider"></div>
-<div class="plan-btn-wrap">
-    @php
-        $planPrice = $plan->fixed_amount > 0 ? $plan->fixed_amount : $plan->minimum;
-    @endphp
-    <button class="plan-btn investModal"
-        data-plan-id="{{ $plan->id }}"
-        data-plan-name="{{ $plan->name }}"
-        data-plan-amount="{{ $planPrice }}"
-        data-plan-price="{{ $planPrice }}">
-        Purchase Now
-    </button>
-</div>
-</div>
-
-            </div>
-            @endforeach
+<!-- page-wrapper start -->
+    <div class="page-wrapper default-version">
+        <div class="sidebar bg--dark">
+    <button class="res-sidebar-close-btn"><i class="las la-times"></i></button>
+    <div class="sidebar__inner">
+        <div class="sidebar__logo">
+            <a href="{{ route('admin.dashboard') }}" class="sidebar__main-logo"><img src="{{ getImage(getFilePath('logoIcon') . '/logo.png') }}" alt="image"></a>
         </div>
-    </div>
-</div>
 
+        <div class="sidebar__menu-wrapper" id="sidebar__menuWrapper">
+            <ul class="sidebar__menu">
+                <li class="sidebar-menu-item active">
+                    <a href="{{ route('admin.dashboard') }}" class="nav-link ">
+                        <i class="menu-icon las la-home"></i>
+                        <span class="menu-title">Dashboard</span>
+                    </a>
+                </li>
+                             <li class="sidebar-menu-item sidebar-dropdown">
+                    <a href="javascript:void(0)" class="{{ menuActive('admin.users*', 3) }}">
+                        <i class="menu-icon las la-users"></i>
+                        <span class="menu-title">@lang('Manage Users')</span>
 
-
-<!-- WALLET FULL PAGE — THEME COLORS -->
-<div id="walletPopup" style="display:none;position:fixed;top:70px;left:0;width:100%;height:100%;background:linear-gradient(160deg, #8d2f09 0%, #bf360c 100%);z-index:999;overflow-y:auto;">
-
-    <!-- Back bar -->
-    <div style="display:flex;align-items:center;padding:14px 16px;background:transparent;">
-        <div onclick="closeModal()" style="width:36px;height:36px;border-radius:11px;background:rgba(0,0,0,0.25);border:1px solid rgba(0,0,0,0.3);display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font-size:16px;">
-            <i class="fas fa-arrow-left"></i>
-        </div>
-        <div style="flex:1;text-align:center;font-size:18px;font-weight:800;color:#fff;font-family:'Poppins',sans-serif;">Select Payment Method</div>
-        <div style="width:36px;"></div>
-    </div>
-
-    <!-- Plan info -->
-    <div style="margin:16px;padding:16px 18px;background:linear-gradient(135deg,#bf360c,#ff7a00);border:1px solid rgba(255,111,0,0.15);border-radius:16px;display:flex;align-items:center;gap:14px;">
-        <div style="width:46px;height:46px;border-radius:13px;background:linear-gradient(135deg,#ff7a00,#bf360c);display:flex;align-items:center;justify-content:center;font-size:18px;color:#fff;flex-shrink:0;"><i class="fas fa-gem"></i></div>
-        <div>
-            <div style="font-size:14px;font-weight:800;color:#fff;font-family:'Poppins',sans-serif;" id="popupPlanName">—</div>
-            <div style="font-size:12px;font-weight:600;color:#ffd54f;margin-top:2px;" id="popupPlanAmount">—</div>
-        </div>
-    </div>
-
-    <!-- Label -->
-    <div style="padding:0 18px;margin-bottom:12px;font-size:11px;font-weight:700;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:1px;font-family:'Poppins',sans-serif;">Important Instruction</div>
-    
-    <div style="margin:0 16px 16px;padding:12px 16px;background:rgba(0,0,0,0.2);border-radius:12px;border:1px solid rgba(255,255,255,0.1);display:flex;align-items:start;gap:12px;">
-        <div style="color:#ffd54f;font-size:16px;margin-top:2px;"><i class="fas fa-exclamation-triangle"></i></div>
-        <div>
-            <div style="font-size:11px;color:rgba(255,255,255,0.9);line-height:1.4;font-family:'Poppins',sans-serif;">
-                Jo bhi payment number show hoga us par payment kar deni hai. Kabhi account holder name show nahi hota, tab bhi payment kar deni hai.
-            </div>
-        </div>
-    </div>
-
-    <!-- Label -->
-    <div style="padding:0 18px;margin-bottom:12px;font-size:11px;font-weight:700;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:1px;font-family:'Poppins',sans-serif;">Tap to Select & Proceed</div>
-
-    <form action="{{ route('user.invest.submit') }}" method="post" id="modalForm">
-        @csrf
-        <input type="hidden" name="plan_id" id="modal_plan_id">
-        <input type="hidden" name="amount" id="modal_amount">
-        <input type="hidden" name="wallet_type" id="modal_wallet_type">
-
-        <!-- Wallet Options (filtered per plan price) -->
-        <!-- method_code < 1000 = automatic, >= 1000 = manual -->
-        <div id="gatewayList" style="display:flex;flex-direction:column;gap:10px;padding:0 16px;margin-bottom:24px;">
-            @if($gatewayCurrency)
-                @foreach($gatewayCurrency as $data)
-                @php $isManual = $data->method_code >= 1000; @endphp
-                <div class="wp-opt gateway-item"
-                    data-gateway-type="{{ $isManual ? 'manual' : 'auto' }}"
-                    onclick="selectAndSubmit('{{ $data->id }}', this)"
-                    style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:linear-gradient(135deg,#bf360c,#ff7a00);border:1.5px solid rgba(255,111,0,0.15);border-radius:16px;cursor:pointer;transition:all .2s;">
-                    @if(!empty($data->image))
-                        <img src="{{ getImage('assets/images/gateway/'.$data->image) }}" alt="{{ $data->name }}" style="width:40px;height:40px;border-radius:11px;object-fit:cover;border:1px solid rgba(255,255,255,0.1);">
-                    @else
-                        <div style="width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,#ff7a00,#bf360c);display:flex;align-items:center;justify-content:center;font-size:16px;color:#fff;"><i class="fas fa-wallet"></i></div>
-                    @endif
-                    <div style="flex:1;">
-                        <div style="font-size:14px;font-weight:700;color:#fff;font-family:'Poppins',sans-serif;">{{ $data->name }}</div>
-                        @if($isManual && $data->method->description)
-                            <div style="font-size:10px;color:#ffd54f;font-weight:600;margin-top:2px;opacity:0.8;">{{ __($data->method->description) }}</div>
+                        @if ($bannedUsersCount > 0 || $emailUnverifiedUsersCount > 0 || $mobileUnverifiedUsersCount > 0 || $kycUnverifiedUsersCount > 0 || $kycPendingUsersCount > 0)
+                            <span class="menu-badge pill bg--danger ms-auto">
+                                <i class="fa fa-exclamation"></i>
+                            </span>
                         @endif
+                    </a>
+                    <div class="sidebar-submenu {{ menuActive('admin.users*', 2) }} ">
+                        <ul>
+                            <li class="sidebar-menu-item {{ menuActive('admin.users.active') }} ">
+                                <a href="{{ route('admin.users.active') }}" class="nav-link">
+                                    <i class="menu-icon las la-dot-circle"></i>
+                                    <span class="menu-title">@lang('Active Users')</span>
+                                </a>
+                            </li>
+                            <li class="sidebar-menu-item {{ menuActive('admin.users.banned') }} ">
+                                <a href="{{ route('admin.users.banned') }}" class="nav-link">
+                                    <i class="menu-icon las la-dot-circle"></i>
+                                    <span class="menu-title">@lang('Banned Users')</span>
+                                    @if ($bannedUsersCount)
+                                        <span class="menu-badge pill bg--danger ms-auto">{{ $bannedUsersCount }}</span>
+                                    @endif
+                                </a>
+                            </li>
+
+
+
+
+
+
+
+                            <li class="sidebar-menu-item {{ menuActive('admin.users.with.balance') }}">
+                                <a href="{{ route('admin.users.with.balance') }}" class="nav-link">
+                                    <i class="menu-icon las la-dot-circle"></i>
+                                    <span class="menu-title">@lang('With Balance')</span>
+                                </a>
+                            </li>
+
+                            <li class="sidebar-menu-item {{ menuActive('admin.users.all') }} ">
+                                <a href="{{ route('admin.users.all') }}" class="nav-link">
+                                    <i class="menu-icon las la-dot-circle"></i>
+                                    <span class="menu-title">@lang('All Users')</span>
+                                </a>
+                            </li>
+
+
+                            <li class="sidebar-menu-item {{ menuActive('admin.users.notification.all') }}">
+                                <a href="{{ route('admin.users.notification.all') }}" class="nav-link">
+                                    <i class="menu-icon las la-dot-circle"></i>
+                                    <span class="menu-title">@lang('Notification to All')</span>
+                                </a>
+                            </li>
+
+                        </ul>
                     </div>
+                </li>
 
-                    @if(!$isManual)
-                        <span style="font-size:10px;font-weight:800;color:#fff;background:rgba(0,200,100,0.3);padding:3px 8px;border-radius:6px;margin-right:6px;">AUTO</span>
-                    @else
-                        <span style="font-size:10px;font-weight:800;color:#fff;background:rgba(255,200,0,0.3);padding:3px 8px;border-radius:6px;margin-right:6px;">MANUAL</span>
-                    @endif
-                    <div style="font-size:14px;color:rgba(255,255,255,0.2);"><i class="fas fa-chevron-right"></i></div>
-                </div>
-                @endforeach
-            @endif
+      <li class="sidebar-menu-item sidebar-dropdown">
+                    <a href="javascript:void(0)" class="">
+                        <i class="menu-icon la la-html5"></i>
+                        <span class="menu-title">Chat Link</span>
+                    </a>
+                    <div class="sidebar-submenu  ">
+                        <ul>
+                            <li class="sidebar-menu-item">
+                                <a href="{{ route('admin.frontend.sections', 'contact_icon') }}" class="nav-link">
+                                    <i class="menu-icon las la-dot-circle"></i>
+                                    <span class="menu-title">Group Links</span>
+                                </a>
+                            </li>
+                            <li class="sidebar-menu-item">
+                                <a href="{{ route('admin.frontend.sections', 'about') }}" class="nav-link">
+                                    <i class="menu-icon las la-dot-circle"></i>
+                                    <span class="menu-title">@lang('FBR Update')</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </li>
+
+                <li class="sidebar-menu-item sidebar-dropdown">
+                    <a href="javascript:void(0)" class="">
+                        <i class="menu-icon las la-clipboard-check"></i>
+                        <span class="menu-title">Plan Manage</span>
+                    </a>
+                    <div class="sidebar-submenu  ">
+                        <ul>
+                            <li class="sidebar-menu-item  ">
+                                <a href="{{ route('admin.time.index') }}" class="nav-link">
+                                    <i class="menu-icon las la-dot-circle"></i>
+                                    <span class="menu-title">Time Manage</span>
+                                </a>
+                            </li>
+                            <li class="sidebar-menu-item ">
+                                <a href="{{ route('admin.plan.index') }}" class="nav-link">
+                                    <i class="menu-icon las la-dot-circle"></i>
+                                    <span class="menu-title">Plan Manage</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </li>
+
+                <li class="sidebar-menu-item ">
+                    <a href="{{ route('admin.referrals.index') }}" class="nav-link ">
+                        <i class="menu-icon las la-tree"></i>
+                        <span class="menu-title">Manage Referral</span>
+                    </a>
+                </li>
+
+                <li class="sidebar-menu-item {{ menuActive('admin.vip.salary.index') }}">
+                    <a href="{{ route('admin.vip.salary.index') }}" class="nav-link ">
+                        <i class="menu-icon las la-crown"></i>
+                        <span class="menu-title">VIP Salary</span>
+                    </a>
+                </li>
+
+                <li class="sidebar-menu-item {{ menuActive('admin.team.reward*') }}">
+                    <a href="{{ route('admin.team.reward.index') }}" class="nav-link ">
+                        <i class="menu-icon las la-users-cog"></i>
+                        <span class="menu-title">Team Rewards</span>
+                    </a>
+                </li>
+
+                <li class="sidebar-menu-item {{ menuActive('admin.spin*') }}">
+                    <a href="{{ route('admin.spin.index') }}" class="nav-link ">
+                        <i class="menu-icon las la-dharmachakra"></i>
+                        <span class="menu-title">Spin Wheel</span>
+                    </a>
+                </li>
+
+                <li class="sidebar-menu-item {{ menuActive('admin.jackpot*') }}">
+                    <a href="{{ route('admin.jackpot.index') }}" class="nav-link ">
+                        <i class="menu-icon las la-trophy"></i>
+                        <span class="menu-title">Jackpots</span>
+                    </a>
+                </li>
+
+                <li class="sidebar-menu-item sidebar-dropdown">
+                    <a href="javascript:void(0)" class="">
+                        <i class="menu-icon las la-ticket-alt"></i>
+                        <span class="menu-title">Promo Codes</span>
+                    </a>
+                    <div class="sidebar-submenu {{ menuActive(['admin.promo.code*', 'admin.setting.live.ticker', 'admin.top.referrer*'], 2) }}">
+                        <ul>
+                            <li class="sidebar-menu-item {{ menuActive('admin.promo.code*') }}">
+                                <a href="{{ route('admin.promo.code.index') }}" class="nav-link">
+                                    <i class="menu-icon las la-dot-circle"></i>
+                                    <span class="menu-title">Promo Codes</span>
+                                </a>
+                            </li>
+                            <li class="sidebar-menu-item {{ menuActive('admin.setting.live.ticker') }}">
+                                <a href="{{ route('admin.setting.live.ticker') }}" class="nav-link">
+                                    <i class="menu-icon las la-dot-circle"></i>
+                                    <span class="menu-title">Live Ticker</span>
+                                </a>
+                            </li>
+                            <li class="sidebar-menu-item {{ menuActive('admin.top.referrer*') }}">
+                                <a href="{{ route('admin.top.referrer.index') }}" class="nav-link">
+                                    <i class="menu-icon las la-dot-circle"></i>
+                                    <span class="menu-title">Top Ten Referrers</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </li>
+
+                <!--<li class="sidebar-menu-item ">-->
+                <!--    <a href="https://unuinvestment.online/admin/invest/report/dashboard" class="nav-link ">-->
+                <!--        <i class="menu-icon las la-signal"></i>-->
+                <!--        <span class="menu-title">Investment Report</span>-->
+                <!--    </a>-->
+                <!--</li>-->
+
+
+
+                <!--<li class="sidebar-menu-item ">-->
+                <!--    <a href="https://unuinvestment.online/admin/promotional-tool" class="nav-link ">-->
+                <!--        <i class="menu-icon las la-ad"></i>-->
+                <!--        <span class="menu-title">Promotional Tool</span>-->
+                <!--    </a>-->
+                <!--</li>-->
+
+                <li class="sidebar-menu-item sidebar-dropdown">
+                    <a href="javascript:void(0)" class="">
+                        <i class="menu-icon las la-credit-card"></i>
+                        <span class="menu-title">Payment Gateways</span>
+                    </a>
+                    <div class="sidebar-submenu  ">
+                        <ul>
+
+                            <!--<li class="sidebar-menu-item  ">-->
+                            <!--    <a href="https://unuinvestment.online/admin/gateway/automatic" class="nav-link">-->
+                            <!--        <i class="menu-icon las la-dot-circle"></i>-->
+                            <!--        <span class="menu-title">Automatic Gateways</span>-->
+                            <!--    </a>-->
+                            <!--</li>-->
+                            <li class="sidebar-menu-item  ">
+                                <a href="{{ route('admin.gateway.manual.index') }}" class="nav-link">
+                                    <i class="menu-icon las la-dot-circle"></i>
+                                    <span class="menu-title">Manual Gateways</span>
+                                </a>
+                            </li>
+
+                        </ul>
+                    </div>
+                </li>
+
+                <li class="sidebar-menu-item sidebar-dropdown">
+                    <a href="javascript:void(0)" class="">
+                        <i class="menu-icon las la-file-invoice-dollar"></i>
+                        <span class="menu-title">Deposits</span>
+                                                    @if (0 < $pendingDepositsCount)
+                            <span class="menu-badge pill bg--danger ms-auto">
+                                <i class="fa fa-exclamation"></i>
+                            </span>
+                        @endif
+
+                                            </a>
+                    <div class="sidebar-submenu  ">
+                        <ul>
+
+                            <li class="sidebar-menu-item  ">
+                                <a href="{{ route('admin.deposit.pending') }}" class="nav-link">
+                                    <i class="menu-icon las la-dot-circle"></i>
+                                    <span class="menu-title">Pending Deposits</span>
+                                                                            @if ($pendingDepositsCount)
+                                        <span class="menu-badge pill bg--danger ms-auto">{{ $pendingDepositsCount }}</span>
+                                    @endif
+                                                                    </a>
+                            </li>
+
+                            <li class="sidebar-menu-item  ">
+                                <a href="{{ route('admin.deposit.approved') }}" class="nav-link">
+                                    <i class="menu-icon las la-dot-circle"></i>
+                                    <span class="menu-title">Approved Deposits</span>
+                                </a>
+                            </li>
+
+                            <li class="sidebar-menu-item  ">
+                                <a href="{{ route('admin.deposit.successful') }}" class="nav-link">
+                                    <i class="menu-icon las la-dot-circle"></i>
+                                    <span class="menu-title">Successful Deposits</span>
+                                </a>
+                            </li>
+
+
+                            <li class="sidebar-menu-item  ">
+                                <a href="{{ route('admin.deposit.rejected') }}" class="nav-link">
+                                    <i class="menu-icon las la-dot-circle"></i>
+                                    <span class="menu-title">Rejected Deposits</span>
+                                </a>
+                            </li>
+
+
+                            <li class="sidebar-menu-item  ">
+
+                                <a href="{{ route('admin.deposit.initiated') }}" class="nav-link">
+                                    <i class="menu-icon las la-dot-circle"></i>
+                                    <span class="menu-title">Initiated Deposits</span>
+                                </a>
+                            </li>
+
+                            <li class="sidebar-menu-item  ">
+                                <a href="{{ route('admin.deposit.list') }}" class="nav-link">
+                                    <i class="menu-icon las la-dot-circle"></i>
+                                    <span class="menu-title">All Deposits</span>
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </li>
+
+
+                <li class="sidebar-menu-item sidebar-dropdown">
+                    <a href="javascript:void(0)" class="{{ menuActive('admin.withdraw*', 3) }}">
+                        <i class="menu-icon la la-bank"></i>
+                        <span class="menu-title">@lang('Withdrawals') </span>
+                        @if (0 < $pendingWithdrawCount)
+                            <span class="menu-badge pill bg--danger ms-auto">
+                                <i class="fa fa-exclamation"></i>
+                            </span>
+                        @endif
+                    </a>
+                    <div class="sidebar-submenu  ">
+                        <ul>
+
+                            <li class="sidebar-menu-item ">
+                                <a href="{{ route('admin.withdraw.method.index') }}" class="nav-link">
+                                    <i class="menu-icon las la-dot-circle"></i>
+                                    <span class="menu-title">Withdrawal Methods</span>
+                                </a>
+                            </li>
+
+                            <li class="sidebar-menu-item {{ menuActive('admin.withdraw.pending') }} ">
+                                <a href="{{ route('admin.withdraw.pending') }}" class="nav-link">
+                                    <i class="menu-icon las la-dot-circle"></i>
+                                    <span class="menu-title">@lang('Pending Withdrawals')</span>
+
+                                    @if ($pendingWithdrawCount)
+                                        <span class="menu-badge pill bg--danger ms-auto">{{ $pendingWithdrawCount }}</span>
+                                    @endif
+                                </a>
+
+                            </li>
+
+
+                            <li class="sidebar-menu-item  ">
+                                <a href="{{ route('admin.withdraw.approved') }}" class="nav-link">
+                                    <i class="menu-icon las la-dot-circle"></i>
+                                    <span class="menu-title">Approved Withdrawals</span>
+                                </a>
+                            </li>
+
+                            <li class="sidebar-menu-item  ">
+                                <a href="{{ route('admin.withdraw.rejected') }}" class="nav-link">
+                                    <i class="menu-icon las la-dot-circle"></i>
+                                    <span class="menu-title">Rejected Withdrawals</span>
+                                </a>
+                            </li>
+
+                            <li class="sidebar-menu-item  ">
+                                <a href="{{ route('admin.withdraw.log') }}" class="nav-link">
+                                    <i class="menu-icon las la-dot-circle"></i>
+                                    <span class="menu-title">All Withdrawals</span>
+                                </a>
+                            </li>
+
+
+                        </ul>
+                    </div>
+                </li>
+
+
+
+
+                <li class="sidebar__menu-header">Settings</li>
+
+                <li class="sidebar-menu-item ">
+                    <a href="{{ route('admin.setting.index') }}" class="nav-link">
+                        <i class="menu-icon las la-life-ring"></i>
+                        <span class="menu-title">General Setting</span>
+                    </a>
+                </li>
+
+                <li class="sidebar-menu-item ">
+                    <a href="{{ route('admin.setting.system.configuration') }}" class="nav-link">
+                        <i class="menu-icon las la-cog"></i>
+                        <span class="menu-title">System Configuration</span>
+                    </a>
+                </li>
+
+                <li class="sidebar-menu-item ">
+                    <a href="{{ route('admin.setting.logo.icon') }}" class="nav-link">
+                        <i class="menu-icon las la-images"></i>
+                        <span class="menu-title">Logo & Favicon</span>
+                    </a>
+                </li>
+
+
+
+                <li class="sidebar-menu-item  ">
+                    <a href="{{ route('admin.language.manage') }}" class="nav-link"
+                       data-default-url="{{ route('admin.language.manage') }}">
+                        <i class="menu-icon las la-language"></i>
+                        <span class="menu-title">Language </span>
+                    </a>
+                </li>
+
+                <li class="sidebar-menu-item ">
+                    <a href="{{ route('admin.seo') }}" class="nav-link">
+                        <i class="menu-icon las la-globe"></i>
+                        <span class="menu-title">SEO Manager</span>
+                    </a>
+                </li>
+
+
+
+                <li class="sidebar-menu-item ">
+                  <a href="{{ route('admin.setting.holiday') }}" class="nav-link">
+                        <i class="menu-icon la la-toggle-off"></i>
+                       <span class="menu-title">Holiday Setting</span>
+                    </a>
+                </li>
+
+
+                <li class="sidebar-menu-item sidebar-dropdown">
+                    <a href="javascript:void(0)" class="{{ menuActive('admin.frontend.sections*', 3) }}">
+                        <i class="menu-icon la la-html5"></i>
+                        <span class="menu-title">@lang('Manage Section')</span>
+                    </a>
+                    <div class="sidebar-submenu {{ menuActive('admin.frontend.sections*', 2) }} ">
+                        <ul>
+                            @php
+                                $lastSegment = collect(request()->segments())->last();
+                            @endphp
+                            <li class="sidebar-menu-item @if ($lastSegment == 'preloader') active @endif">
+                                <a href="{{ route('admin.frontend.sections', 'preloader') }}" class="nav-link">
+                                    <i class="menu-icon las la-spinner"></i>
+                                    <span class="menu-title">@lang('Preloader')</span>
+                                </a>
+                            </li>
+                            @foreach (getPageSections(true) as $k => $secs)
+                                @if ($secs['builder'] && $k !== 'preloader')
+                                    <li class="sidebar-menu-item  @if ($lastSegment == $k) active @endif ">
+                                        <a href="{{ route('admin.frontend.sections', $k) }}" class="nav-link">
+                                            <i class="menu-icon las la-dot-circle"></i>
+                                            <span class="menu-title">{{ __($secs['name']) }}</span>
+                                        </a>
+                                    </li>
+                                @endif
+                            @endforeach
+                        </ul>
+                    </div>
+                </li>
+                 <li class="sidebar__menu-header">@lang('Extra')</li>
+
+
+                <li class="sidebar-menu-item {{ menuActive('admin.maintenance.mode') }}">
+                    <a href="{{ route('admin.maintenance.mode') }}" class="nav-link">
+                        <i class="menu-icon las la-robot"></i>
+                        <span class="menu-title">@lang('Maintenance Mode')</span>
+                    </a>
+                </li>
+
+
+
         </div>
-    </form>
+    </div>
 </div>
-
-<style>
-.wp-opt:active {
-  border-color: #ff6f00 !important; /* theme orange */
-  background: rgba(255,111,0,0.15) !important; /* light orange transparent */
-}
-</style>
-
-
-@push('script')
-<script>
-function closeModal(){
-    document.getElementById('walletPopup').style.display = 'none';
-    document.body.style.overflow = '';
-}
-
-function selectAndSubmit(id, el){
-    document.getElementById('modal_wallet_type').value = id;
-    document.getElementById('modalForm').submit();
-}
-
-$(document).ready(function(){
-    $('.investModal').on('click', function(){
-        var planId     = $(this).data('plan-id');
-        var planName   = $(this).data('plan-name');
-        var planAmount = $(this).data('plan-amount');
-        var planPrice  = parseFloat($(this).data('plan-price')) || 0;
-
-        $('#modal_plan_id').val(planId);
-        $('#modal_amount').val(planAmount);
-        $('#popupPlanName').text(planName);
-        $('#popupPlanAmount').text('{{ $general->cur_sym }}' + Number(planAmount).toLocaleString());
-        $('#modal_wallet_type').val('');
-
-        $('#popupPlanAmount').text('{{ $general->cur_sym }}' + Number(planAmount).toLocaleString());
-        $('#modal_wallet_type').val('');
-
-        // Standard filtering: price > 10000 → show auto only, else → show manual only
-        $('.gateway-item').each(function(){
-            var type = $(this).data('gateway-type'); // 'auto' or 'manual'
-            if (planPrice > 10) {
-                $(this).toggle(type === 'auto');
-            } else {
-                $(this).toggle(type === 'manual');
-            }
-        });
-
-        document.getElementById('walletPopup').style.display = 'block';
-        document.getElementById('walletPopup').scrollTop = 0;
-        document.body.style.overflow = 'hidden';
-    });
-});
-</script>
-@endpush
-
-
-
-@endsection
+<!-- sidebar end -->
