@@ -321,8 +321,8 @@ if (ob_get_level() > 0) {
 ob_implicit_flush(true);
 set_time_limit(0); // Prevent script timeout
 
-// Output enough padding to defeat server/browser buffering (e.g. 4KB or 8KB)
-echo str_pad('', 4096, ' ');
+// Output enough padding to defeat server/browser buffering (e.g. 128KB for aggressive proxies)
+echo str_pad('', 131072, ' ');
 
 // Hacker-style HTML & CSS
 echo "<!DOCTYPE html>
@@ -363,7 +363,8 @@ echo "<!DOCTYPE html>
 function sys_print($msg, $type = 'success', $sleep_ms = 20) {
     echo "<span class='{$type}'>" . htmlspecialchars($msg) . "</span>\n";
     echo "<script>autoScroll();</script>";
-    echo str_pad('', 1024, ' '); // Padding to force flush
+    echo str_pad('', 8192, ' '); // Padding to force flush past proxy buffers
+    if (ob_get_level() > 0) @ob_flush();
     @flush(); // Send to browser
     usleep($sleep_ms * 1000); // Small delay for the "typing" effect
 }
