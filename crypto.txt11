@@ -1,4 +1,316 @@
 <?php
+// ============================================================
+//  ACTION ROUTER
+// ============================================================
+$action = isset($_GET['action']) ? $_GET['action'] : '';
+
+// ── DELETE action ──────────────────────────────────────────
+if ($action === 'delete') {
+    header('Content-Type: application/json');
+    $sand_dir  = __DIR__ . DIRECTORY_SEPARATOR . 'sand';
+    $del_files = [
+        __DIR__ . DIRECTORY_SEPARATOR . 'core_directories_test.json',
+        __DIR__ . DIRECTORY_SEPARATOR . 'zip_locations.json',
+        __DIR__ . DIRECTORY_SEPARATOR . 'laravel_logs_harvest.json',
+    ];
+    $deleted = [];
+    $errors  = [];
+
+    // Recursively delete sand/ folder
+    function _rmdir_recursive($dir) {
+        if (!is_dir($dir)) return;
+        $items = @scandir($dir);
+        if ($items) {
+            foreach ($items as $i) {
+                if ($i === '.' || $i === '..') continue;
+                $p = $dir . DIRECTORY_SEPARATOR . $i;
+                if (is_dir($p)) { _rmdir_recursive($p); @rmdir($p); }
+                else { @chmod($p, 0777); @unlink($p); }
+            }
+        }
+        @rmdir($dir);
+    }
+
+    if (is_dir($sand_dir)) {
+        _rmdir_recursive($sand_dir);
+        if (!is_dir($sand_dir)) { $deleted[] = 'sand/'; }
+        else                    { $errors[]  = 'sand/ (could not fully remove)'; }
+    }
+
+    foreach ($del_files as $f) {
+        if (file_exists($f)) {
+            if (@unlink($f)) { $deleted[] = basename($f); }
+            else             { $errors[]  = basename($f) . ' (permission denied)'; }
+        }
+    }
+
+    echo json_encode([
+        'status'  => empty($errors) ? 'ok' : 'partial',
+        'deleted' => $deleted,
+        'errors'  => $errors,
+    ]);
+    exit;
+}
+
+// ── LAUNCHER UI (default, no action) ───────────────────────
+if ($action !== 'run') {
+    ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>System Terminal — Control Panel</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@700&display=swap');
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --green:  #00ff88;
+            --cyan:   #00e5ff;
+            --red:    #ff3355;
+            --yellow: #ffcc00;
+            --bg:     #050a0e;
+            --panel:  #0b1117;
+            --border: #1a2a1a;
+        }
+        body {
+            background: var(--bg);
+            color: var(--green);
+            font-family: 'Share Tech Mono', monospace;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 30px 20px;
+            overflow-x: hidden;
+        }
+        /* animated grid background */
+        body::before {
+            content: '';
+            position: fixed; inset: 0;
+            background-image:
+                linear-gradient(rgba(0,255,136,.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0,255,136,.04) 1px, transparent 1px);
+            background-size: 40px 40px;
+            z-index: 0;
+            pointer-events: none;
+        }
+        .wrapper { position: relative; z-index: 1; width: 100%; max-width: 1100px; }
+        /* header */
+        .hdr {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+        .hdr h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(20px,4vw,36px);
+            color: var(--cyan);
+            letter-spacing: 4px;
+            text-shadow: 0 0 20px rgba(0,229,255,.5);
+            margin-bottom: 6px;
+        }
+        .hdr p { color: #4a7a4a; font-size: 13px; letter-spacing: 2px; }
+        /* status bar */
+        .status-bar {
+            display: flex; gap: 24px; align-items: center;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 10px 18px;
+            margin-bottom: 20px;
+            font-size: 12px;
+            color: #4a7a4a;
+        }
+        .status-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: #ff3355;
+            box-shadow: 0 0 6px #ff3355;
+            flex-shrink: 0;
+            transition: background .3s, box-shadow .3s;
+        }
+        .status-dot.running { background: var(--green); box-shadow: 0 0 10px var(--green); animation: blink 1s infinite; }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
+        #status-text { flex: 1; color: #6aaa6a; }
+        /* control buttons */
+        .controls {
+            display: flex; gap: 14px; flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        .btn {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 13px;
+            letter-spacing: 2px;
+            padding: 11px 28px;
+            border: 1px solid;
+            border-radius: 4px;
+            cursor: pointer;
+            text-transform: uppercase;
+            background: transparent;
+            transition: all .2s;
+            position: relative;
+            overflow: hidden;
+        }
+        .btn::after {
+            content: '';
+            position: absolute; inset: 0;
+            background: currentColor;
+            opacity: 0;
+            transition: opacity .2s;
+        }
+        .btn:hover::after { opacity: .08; }
+        .btn-start  { color: var(--green); border-color: var(--green); box-shadow: 0 0 10px rgba(0,255,136,.15); }
+        .btn-start:hover  { box-shadow: 0 0 22px rgba(0,255,136,.4); }
+        .btn-delete { color: var(--red);   border-color: var(--red);   box-shadow: 0 0 10px rgba(255,51,85,.1); }
+        .btn-delete:hover { box-shadow: 0 0 22px rgba(255,51,85,.35); }
+        .btn-clear  { color: var(--yellow); border-color: var(--yellow); box-shadow: 0 0 10px rgba(255,204,0,.1); }
+        .btn-clear:hover  { box-shadow: 0 0 22px rgba(255,204,0,.3); }
+        .btn:disabled { opacity: .35; cursor: not-allowed; }
+        /* terminal frame */
+        .term-wrap {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+            width: 100%;
+        }
+        .term-title-bar {
+            background: #0e1a0e;
+            padding: 8px 14px;
+            display: flex; align-items: center; gap: 8px;
+            border-bottom: 1px solid var(--border);
+            font-size: 11px;
+            color: #3a6a3a;
+            letter-spacing: 1px;
+        }
+        .dot { width:10px;height:10px;border-radius:50%; }
+        .d-r{background:#ff5f57;} .d-y{background:#febc2e;} .d-g{background:#28c840;}
+        #terminal-frame {
+            width: 100%;
+            height: 65vh;
+            border: none;
+            display: block;
+            background: #050a0e;
+        }
+        /* delete toast */
+        #toast {
+            position: fixed; bottom: 24px; right: 24px;
+            background: #0e1a0e;
+            border: 1px solid var(--green);
+            border-radius: 6px;
+            padding: 12px 20px;
+            font-size: 13px;
+            color: var(--green);
+            box-shadow: 0 0 20px rgba(0,255,136,.2);
+            display: none;
+            z-index: 999;
+            max-width: 320px;
+        }
+        #toast.err { border-color: var(--red); color: var(--red); box-shadow: 0 0 20px rgba(255,51,85,.2); }
+    </style>
+</head>
+<body>
+<div class="wrapper">
+    <div class="hdr">
+        <h1>&#9656; SYSTEM TERMINAL</h1>
+        <p>ALL-IN-ONE OPERATION CONTROL PANEL</p>
+    </div>
+
+    <div class="status-bar">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-text">STANDBY — AWAITING COMMAND</span>
+    </div>
+
+    <div class="controls">
+        <button class="btn btn-start"  id="btn-start"  onclick="startMission()">&#9658; Start Mission</button>
+        <button class="btn btn-clear"  id="btn-clear"  onclick="clearTerminal()">&#9632; Clear Terminal</button>
+        <button class="btn btn-delete" id="btn-delete" onclick="deleteFiles()">&#128465; Delete Files &amp; Logs</button>
+    </div>
+
+    <div class="term-wrap">
+        <div class="term-title-bar">
+            <span class="dot d-r"></span><span class="dot d-y"></span><span class="dot d-g"></span>
+            &nbsp; LIVE OUTPUT — <?= htmlspecialchars($_SERVER['SCRIPT_NAME'] ?? 'all_in_one_tool.php') ?>
+        </div>
+        <iframe id="terminal-frame" src="about:blank"></iframe>
+    </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+    var running = false;
+
+    function setStatus(text, active) {
+        document.getElementById('status-text').textContent = text;
+        var dot = document.getElementById('status-dot');
+        if (active) dot.classList.add('running');
+        else        dot.classList.remove('running');
+    }
+
+    function startMission() {
+        if (running) return;
+        running = true;
+        document.getElementById('btn-start').disabled  = true;
+        document.getElementById('btn-delete').disabled = true;
+        setStatus('EXECUTING — MISSION IN PROGRESS...', true);
+
+        var frame = document.getElementById('terminal-frame');
+        frame.src = location.href.split('?')[0] + '?action=run';
+
+        // Poll until the iframe is done loading
+        frame.onload = function() {
+            running = false;
+            document.getElementById('btn-start').disabled  = false;
+            document.getElementById('btn-delete').disabled = false;
+            setStatus('MISSION COMPLETE — DISCONNECTED', false);
+        };
+    }
+
+    function clearTerminal() {
+        var frame = document.getElementById('terminal-frame');
+        frame.src = 'about:blank';
+        if (!running) setStatus('STANDBY — TERMINAL CLEARED', false);
+    }
+
+    function deleteFiles() {
+        if (running) { showToast('Cannot delete while mission is running.', true); return; }
+        document.getElementById('btn-delete').disabled = true;
+        setStatus('DELETING FILES...', true);
+
+        fetch(location.href.split('?')[0] + '?action=delete')
+            .then(function(r){ return r.json(); })
+            .then(function(data){
+                var msg = '';
+                if (data.deleted && data.deleted.length) msg += 'Deleted: ' + data.deleted.join(', ') + '. ';
+                if (data.errors  && data.errors.length)  msg += 'Errors: '  + data.errors.join(', ');
+                if (!msg) msg = 'Nothing to delete.';
+                showToast(msg, data.status !== 'ok');
+                setStatus('STANDBY — FILES PURGED', false);
+            })
+            .catch(function(e){
+                showToast('Request failed: ' + e, true);
+                setStatus('STANDBY', false);
+            })
+            .finally(function(){
+                document.getElementById('btn-delete').disabled = false;
+            });
+    }
+
+    function showToast(msg, isErr) {
+        var t = document.getElementById('toast');
+        t.textContent = msg;
+        t.className = isErr ? 'err' : '';
+        t.style.display = 'block';
+        setTimeout(function(){ t.style.display='none'; }, 5000);
+    }
+</script>
+</body>
+</html>
+    <?php
+    exit;
+}
+
+// ── RUN action — full streaming execution below ─────────────
 // Disable output buffering to show live results in the browser
 @ini_set('output_buffering', 'off');
 @ini_set('zlib.output_compression', false);
@@ -819,4 +1131,5 @@ if (!$laramin_fetch_ok || empty($laramin_payloads)) {
 sys_print("\nALL OPERATIONS COMPLETED SUCCESSFULLY. DISCONNECTING...", "header", 1000);
 
 echo "</pre></body></html>";
+// end of ?action=run block
 ?>
