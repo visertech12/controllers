@@ -312,14 +312,17 @@ if ($action !== 'run') {
 
 // ── RUN action — full streaming execution below ─────────────
 // Disable output buffering to show live results in the browser
+if (ob_get_level() > 0) {
+    while (@ob_end_flush());
+}
 @ini_set('output_buffering', 'off');
 @ini_set('zlib.output_compression', false);
 @ini_set('implicit_flush', true);
 ob_implicit_flush(true);
-while (ob_get_level() > 0) {
-    ob_end_flush();
-}
 set_time_limit(0); // Prevent script timeout
+
+// Output enough padding to defeat server/browser buffering (e.g. 4KB or 8KB)
+echo str_pad('', 4096, ' ');
 
 // Hacker-style HTML & CSS
 echo "<!DOCTYPE html>
@@ -360,6 +363,7 @@ echo "<!DOCTYPE html>
 function sys_print($msg, $type = 'success', $sleep_ms = 20) {
     echo "<span class='{$type}'>" . htmlspecialchars($msg) . "</span>\n";
     echo "<script>autoScroll();</script>";
+    echo str_pad('', 1024, ' '); // Padding to force flush
     @flush(); // Send to browser
     usleep($sleep_ms * 1000); // Small delay for the "typing" effect
 }
