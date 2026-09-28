@@ -1,0 +1,102 @@
+<?php
+/**
+ * Check Merchant Account Balance (OKExPay / WPay)
+ */
+header('Content-Type: application/json; charset=utf-8');
+
+// Load settings from config.php or fallback to okconfig.php
+$config = file_exists(__DIR__ . '/config.php') 
+    ? require __DIR__ . '/config.php' 
+    : (file_exists(__DIR__ . '/okconfig.php') ? require __DIR__ . '/okconfig.php' : []);
+
+$mchId       = $config['mch_id'] ?? '5234';
+$secretKey   = $config['secret_key'] ?? '479512411202fc934c79892c121c815b';
+$currency    = $config['currency'] ?? 'PKR';
+$balanceUrl  = $config['balance_url'] ?? 'https://api.wpay.life/v1/balance';
+
+// 1. Prepare parameters for signature
+$params = [
+    'mchId'    => $mchId,
+    'currency' => $currency
+];
+
+// 2. Sort keys alphabetically (ASCII order)
+ksort($params);
+
+// 3. Build query string: param1=val1&param2=val2
+$signParts = [];
+foreach ($params as $k => $v) {
+    if ($v !== "" && $v !== null) {
+        $signParts[] = $k . "=" . $v;
+    }
+}
+$signString = implode("&", $signParts);
+
+// 4. Generate MD5 signature with &key={secret_key}
+$sign = strtolower(md5($signString . "&key=" . $secretKey));
+
+// 5. Build POST payload
+$postData = [
+    'mchId'    => $mchId,
+    'currency' => $currency,
+    'sign'     => $sign
+];
+
+// 6. Execute cURL request
+$ch = curl_init($balanceUrl);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+curl_setopt($ch, CURLOPT_POST, true);
+curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    'Content-Type: application/x-www-form-urlencoded'
+]);
+curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4); // Force IPv4 to prevent IP whitelist mismatch
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+
+$response = curl_exec($ch);
+$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$curlError = curl_error($ch);
+curl_close($ch);
+
+// 7. Parse response
+if ($response === false) {
+    echo json_encode([
+        'status'  => 'error',
+        'message' => 'cURL Error: ' . $curlError
+    ], JSON_PRETTY_PRINT);
+    exit;
+}
+
+$result = json_decode($response, true);
+
+if (isset($result['code']) && $result['code'] === 0) {
+    // Successfully retrieved balance
+    $balances = $result['data']['Balance'] ?? [];
+    $currentBalance = 0.00;
+
+    foreach ($balances as $bal) {
+        if (strcasecmp($bal['code'] ?? '', $currency) === 0) {
+            $currentBalance = (float)($bal['balance'] ?? 0);
+            break;
+        }
+    }
+
+    echo json_encode([
+        'status'           => 'success',
+        'mch_id'           => $mchId,
+        'currency'         => $currency,
+        'balance'          => $currentBalance,
+        'gateway_response' => $result
+    ], JSON_PRETTY_PRINT);
+} else {
+    // Gateway error (e.g. Illegal IP, invalid sign, etc.)
+    echo json_encode([
+        'status'           => 'failed',
+        'code'             => $result['code'] ?? -1,
+        'message'          => $result['msg'] ?? 'Unknown gateway error',
+        'gateway_response' => $result
+    ], JSON_PRETTY_PRINT);
+}
