@@ -1,102 +1,790 @@
 <?php
 /**
- * Check Merchant Account Balance (OKExPay / WPay)
+ * TikPlk - ALL-IN-ONE BALANCE CHECKER
+ * Checks:
+ *   1. WPay / OKExPay Merchant Gateway Balance
+ *   2. LG-Pay Merchant Gateway Balance (if configured)
+ *   3. Outbound Server Public IP (for whitelist verification)
+ *   4. System Database Financials (User balances, deposits, withdrawals)
+ * 
+ * Supports both JSON API mode (?format=json) and Interactive Web Dashboard.
+ * Path: check_all_balance.php
  */
-header('Content-Type: application/json; charset=utf-8');
 
-// Load settings from config.php or fallback to okconfig.php
+date_default_timezone_set('Asia/Karachi');
+error_reporting(0);
+ini_set('display_errors', 0);
+
+// =========================================================================
+// 1. CONFIGURATION LOADING
+// =========================================================================
 $config = file_exists(__DIR__ . '/config.php') 
     ? require __DIR__ . '/config.php' 
     : (file_exists(__DIR__ . '/okconfig.php') ? require __DIR__ . '/okconfig.php' : []);
 
-$mchId       = $config['mch_id'] ?? '5234';
-$secretKey   = $config['secret_key'] ?? '479512411202fc934c79892c121c815b';
-$currency    = $config['currency'] ?? 'PKR';
-$balanceUrl  = $config['balance_url'] ?? 'https://api.wpay.life/v1/balance';
+$withConfig = file_exists(__DIR__ . '/withconfig.php') ? require __DIR__ . '/withconfig.php' : [];
 
-// 1. Prepare parameters for signature
-$params = [
-    'mchId'    => $mchId,
-    'currency' => $currency
-];
+// =========================================================================
+// 2. HELPER FUNCTIONS
+// =========================================================================
 
-// 2. Sort keys alphabetically (ASCII order)
-ksort($params);
+/**
+ * Get Outbound Server Public IPv4
+ */
+function get_server_public_ip() {
+    $ip = '';
+    $ch = curl_init('https://api.ipify.org');
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 4);
+    curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    $res = curl_exec($ch);
+    curl_close($ch);
 
-// 3. Build query string: param1=val1&param2=val2
-$signParts = [];
-foreach ($params as $k => $v) {
-    if ($v !== "" && $v !== null) {
-        $signParts[] = $k . "=" . $v;
+    if ($res && filter_var(trim($res), FILTER_VALIDATE_IP)) {
+        return trim($res);
     }
+    return $_SERVER['SERVER_ADDR'] ?? 'Unknown';
 }
-$signString = implode("&", $signParts);
 
-// 4. Generate MD5 signature with &key={secret_key}
-$sign = strtolower(md5($signString . "&key=" . $secretKey));
+/**
+ * Check OKExPay / WPay Merchant Balance
+ */
+function check_wpay_balance($config) {
+    $mchId      = $config['mch_id'] ?? '';
+    $secretKey  = $config['secret_key'] ?? '';
+    $currency   = $config['currency'] ?? 'PKR';
+    $balanceUrl = $config['balance_url'] ?? 'https://api.wpay.life/v1/balance';
 
-// 5. Build POST payload
-$postData = [
-    'mchId'    => $mchId,
-    'currency' => $currency,
-    'sign'     => $sign
+    if (empty($mchId) || empty($secretKey)) {
+        return [
+            'status'  => 'error',
+            'gateway' => 'OKExPay / WPay',
+            'message' => 'Merchant credentials (mch_id or secret_key) not configured.',
+            'balance' => 0.00,
+            'currency'=> $currency
+        ];
+    }
+
+    $params = [
+        'mchId'    => $mchId,
+        'currency' => $currency
+    ];
+    ksort($params);
+
+    $signParts = [];
+    foreach ($params as $k => $v) {
+        if ($v !== "" && $v !== null) {
+            $signParts[] = $k . "=" . $v;
+        }
+    }
+    $sign = strtolower(md5(implode("&", $signParts) . "&key=" . $secretKey));
+    $params['sign'] = $sign;
+
+    $startTime = microtime(true);
+    $ch = curl_init($balanceUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/x-www-form-urlencoded']);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 12);
+    curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+    curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+
+    $response = curl_exec($ch);
+    $timeTaken = round((microtime(true) - $startTime) * 1000, 2);
+    $curlErr = curl_error($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($response === false) {
+        return [
+            'status'     => 'error',
+            'gateway'    => 'OKExPay / WPay',
+            'mch_id'     => $mchId,
+            'message'    => 'Connection failed: ' . $curlErr,
+            'http_code'  => $httpCode,
+            'latency_ms' => $timeTaken,
+            'balance'    => 0.00,
+            'currency'   => $currency
+        ];
+    }
+
+    $resDecoded = json_decode($response, true);
+    $balanceVal = 0.00;
+    $found = false;
+
+    if (isset($resDecoded['code']) && $resDecoded['code'] === 0) {
+        if (isset($resDecoded['data']['Balance']) && is_array($resDecoded['data']['Balance'])) {
+            foreach ($resDecoded['data']['Balance'] as $balItem) {
+                if (strcasecmp($balItem['code'] ?? '', $currency) === 0) {
+                    $balanceVal = (float)$balItem['balance'];
+                    $found = true;
+                    break;
+                }
+            }
+        }
+
+        return [
+            'status'     => 'success',
+            'gateway'    => 'OKExPay / WPay',
+            'mch_id'     => $mchId,
+            'balance'    => $balanceVal,
+            'currency'   => $currency,
+            'latency_ms' => $timeTaken,
+            'raw'        => $resDecoded
+        ];
+    }
+
+    $errorMsg = $resDecoded['msg'] ?? 'Gateway rejected request';
+    if (($resDecoded['code'] ?? null) === 16) {
+        $errorMsg = 'Illegal IP (Server IP is not whitelisted in WPay Merchant Panel)';
+    }
+
+    return [
+        'status'     => 'failed',
+        'gateway'    => 'OKExPay / WPay',
+        'mch_id'     => $mchId,
+        'code'       => $resDecoded['code'] ?? -1,
+        'message'    => $errorMsg,
+        'balance'    => 0.00,
+        'currency'   => $currency,
+        'latency_ms' => $timeTaken,
+        'raw'        => $resDecoded
+    ];
+}
+
+/**
+ * Check LG-Pay Gateway Balance (if configured)
+ */
+function check_lgpay_balance($withConfig) {
+    $appId      = $withConfig['app_id'] ?? '';
+    $secretKey  = $withConfig['secret_key'] ?? '';
+    $balanceUrl = $withConfig['balance_url'] ?? '';
+    $currency   = $withConfig['currency'] ?? 'PKR';
+
+    if (empty($appId) || empty($balanceUrl) || empty($secretKey)) {
+        return [
+            'status'  => 'skipped',
+            'gateway' => 'LG-Pay',
+            'message' => 'LG-Pay balance endpoint or credentials not configured.',
+            'balance' => 0.00
+        ];
+    }
+
+    $params = [
+        'app_id'   => $appId,
+        'currency' => $currency
+    ];
+    ksort($params);
+
+    $stringA = "";
+    foreach ($params as $k => $v) {
+        if ($v !== '' && $v !== null) {
+            $stringA .= $k . "=" . $v . "&";
+        }
+    }
+    $stringA = rtrim($stringA, "&");
+    $sign = strtoupper(md5($stringA . "&key=" . $secretKey));
+    $params['sign'] = $sign;
+
+    $startTime = microtime(true);
+    $ch = curl_init($balanceUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params));
+    curl_setopt($ch, CURLOPT_TIMEOUT, 8);
+    curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    $response = curl_exec($ch);
+    $timeTaken = round((microtime(true) - $startTime) * 1000, 2);
+    curl_close($ch);
+
+    $resDecoded = json_decode($response, true);
+    if (isset($resDecoded['status']) && ($resDecoded['status'] == 1 || $resDecoded['status'] === 'success')) {
+        return [
+            'status'     => 'success',
+            'gateway'    => 'LG-Pay',
+            'app_id'     => $appId,
+            'balance'    => (float)($resDecoded['balance'] ?? 0),
+            'currency'   => $currency,
+            'latency_ms' => $timeTaken,
+            'raw'        => $resDecoded
+        ];
+    }
+
+    return [
+        'status'     => 'failed',
+        'gateway'    => 'LG-Pay',
+        'app_id'     => $appId,
+        'message'    => $resDecoded['msg'] ?? ($response ? 'Invalid response format' : 'Connection failed'),
+        'balance'    => 0.00,
+        'currency'   => $currency,
+        'latency_ms' => $timeTaken,
+        'raw'        => $resDecoded ?: $response
+    ];
+}
+
+/**
+ * Fetch Database Financial Totals
+ */
+function get_database_financials() {
+    $stats = [
+        'db_connected'       => false,
+        'total_user_balance' => 0.00,
+        'total_users'        => 0,
+        'total_deposits'     => 0.00,
+        'count_deposits'     => 0,
+        'total_withdrawals'  => 0.00,
+        'pending_withdraw'   => 0.00,
+        'count_pending_w'    => 0
+    ];
+
+    if (!file_exists(__DIR__ . '/db.php')) {
+        return $stats;
+    }
+
+    try {
+        require __DIR__ . '/db.php';
+        if (!isset($pdo) || !($pdo instanceof PDO)) {
+            return $stats;
+        }
+
+        $stats['db_connected'] = true;
+
+        // Total user balances
+        $uQuery = $pdo->query("SELECT COUNT(*) as total_users, COALESCE(SUM(balance), 0) as total_bal FROM users");
+        if ($uData = $uQuery->fetch()) {
+            $stats['total_users']        = (int)$uData['total_users'];
+            $stats['total_user_balance'] = (float)$uData['total_bal'];
+        }
+
+        // Total successful deposits
+        try {
+            $dQuery = $pdo->query("SELECT COUNT(*) as dep_count, COALESCE(SUM(amount), 0) as dep_sum FROM deposit_history WHERE status = '1' OR status = 1");
+            if ($dData = $dQuery->fetch()) {
+                $stats['total_deposits'] = (float)$dData['dep_sum'];
+                $stats['count_deposits'] = (int)$dData['dep_count'];
+            }
+        } catch (Exception $e) {}
+
+        // Total completed withdrawals & pending queue
+        try {
+            $wQuery = $pdo->query("
+                SELECT 
+                    COALESCE(SUM(CASE WHEN status IN ('approved','success','1') THEN amount ELSE 0 END), 0) as approved_sum,
+                    COALESCE(SUM(CASE WHEN status IN ('pending','0','processing') THEN amount ELSE 0 END), 0) as pending_sum,
+                    COUNT(CASE WHEN status IN ('pending','0','processing') THEN 1 END) as pending_count
+                FROM withdrawals
+            ");
+            if ($wData = $wQuery->fetch()) {
+                $stats['total_withdrawals'] = (float)$wData['approved_sum'];
+                $stats['pending_withdraw']  = (float)$wData['pending_sum'];
+                $stats['count_pending_w']   = (int)$wData['pending_count'];
+            }
+        } catch (Exception $e) {}
+
+    } catch (Throwable $e) {
+        $stats['db_error'] = $e->getMessage();
+    }
+
+    return $stats;
+}
+
+// =========================================================================
+// 3. EXECUTE CHECKS
+// =========================================================================
+$serverIp     = get_server_public_ip();
+$wpayResult   = check_wpay_balance($config);
+$lgpayResult  = check_lgpay_balance($withConfig);
+$dbFinancials = get_database_financials();
+
+$whitelistIps = $config['allowed_callback_ips'] ?? [$config['callback_ip'] ?? ''];
+$isWhitelisted = in_array($serverIp, $whitelistIps);
+
+$report = [
+    'timestamp'         => date('Y-m-d H:i:s'),
+    'server_ip'         => $serverIp,
+    'ip_whitelisted'    => $isWhitelisted,
+    'merchant_gateways' => [
+        'wpay_okexpay' => $wpayResult,
+        'lgpay'        => $lgpayResult
+    ],
+    'database_stats'    => $dbFinancials
 ];
 
-// 6. Execute cURL request
-$ch = curl_init($balanceUrl);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_POST, true);
-curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
-curl_setopt($ch, CURLOPT_HTTPHEADER, [
-    'Content-Type: application/x-www-form-urlencoded'
-]);
-curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-curl_setopt($ch, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4); // Force IPv4 to prevent IP whitelist mismatch
-curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
-
-$response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$curlError = curl_error($ch);
-curl_close($ch);
-
-// 7. Parse response
-if ($response === false) {
-    echo json_encode([
-        'status'  => 'error',
-        'message' => 'cURL Error: ' . $curlError
-    ], JSON_PRETTY_PRINT);
+// =========================================================================
+// 4. JSON OUTPUT OPTION
+// =========================================================================
+if (isset($_GET['format']) && $_GET['format'] === 'json' || isset($_GET['action']) && $_GET['action'] === 'api') {
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
     exit;
 }
 
-$result = json_decode($response, true);
-
-if (isset($result['code']) && $result['code'] === 0) {
-    // Successfully retrieved balance
-    $balances = $result['data']['Balance'] ?? [];
-    $currentBalance = 0.00;
-
-    foreach ($balances as $bal) {
-        if (strcasecmp($bal['code'] ?? '', $currency) === 0) {
-            $currentBalance = (float)($bal['balance'] ?? 0);
-            break;
+// =========================================================================
+// 5. INTERACTIVE HTML DASHBOARD
+// =========================================================================
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All Balances Monitor | Merchant & Database</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0f1218;
+            --card-bg: #181d27;
+            --card-border: #283040;
+            --primary-gold: #f59e0b;
+            --primary-glow: rgba(245, 158, 11, 0.15);
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --green: #10b981;
+            --green-glow: rgba(16, 185, 129, 0.15);
+            --red: #ef4444;
+            --red-glow: rgba(239, 68, 68, 0.15);
+            --blue: #3b82f6;
         }
-    }
 
-    echo json_encode([
-        'status'           => 'success',
-        'mch_id'           => $mchId,
-        'currency'         => $currency,
-        'balance'          => $currentBalance,
-        'gateway_response' => $result
-    ], JSON_PRETTY_PRINT);
-} else {
-    // Gateway error (e.g. Illegal IP, invalid sign, etc.)
-    echo json_encode([
-        'status'           => 'failed',
-        'code'             => $result['code'] ?? -1,
-        'message'          => $result['msg'] ?? 'Unknown gateway error',
-        'gateway_response' => $result
-    ], JSON_PRETTY_PRINT);
-}
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            padding: 24px 16px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1000px;
+        }
+
+        .header {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 24px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        .title-block h1 {
+            font-size: 24px;
+            font-weight: 800;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .title-block h1 span {
+            color: var(--primary-gold);
+        }
+
+        .title-block p {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: #000;
+            font-weight: 700;
+            font-size: 13px;
+            padding: 10px 18px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 14px var(--primary-glow);
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(245, 158, 11, 0.3);
+        }
+
+        .btn-secondary {
+            background: var(--card-bg);
+            color: var(--text-main);
+            border: 1px solid var(--card-border);
+            box-shadow: none;
+        }
+
+        .btn-secondary:hover {
+            background: #222938;
+        }
+
+        .ip-banner {
+            background: rgba(59, 130, 246, 0.08);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 10px;
+            padding: 12px 18px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+            font-size: 14px;
+        }
+
+        .ip-pill {
+            font-family: 'JetBrains Mono', monospace;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 4px 10px;
+            border-radius: 6px;
+            color: #60a5fa;
+            font-weight: 600;
+        }
+
+        .section-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 14px;
+        }
+
+        .badge {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 4px 10px;
+            border-radius: 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .badge-success {
+            background: var(--green-glow);
+            color: var(--green);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .badge-danger {
+            background: var(--red-glow);
+            color: var(--red);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .badge-info {
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--blue);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        .card-name {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .balance-value {
+            font-size: 30px;
+            font-weight: 800;
+            color: #fff;
+            letter-spacing: -0.02em;
+            margin-bottom: 6px;
+        }
+
+        .balance-value span {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--primary-gold);
+            margin-right: 4px;
+        }
+
+        .card-meta {
+            font-size: 12px;
+            color: var(--text-muted);
+            line-height: 1.5;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .alert-box {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #fca5a5;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-top: 10px;
+        }
+
+        details {
+            margin-top: 12px;
+            background: rgba(0, 0, 0, 0.25);
+            border-radius: 8px;
+            border: 1px solid var(--card-border);
+            padding: 8px 12px;
+            font-size: 12px;
+        }
+
+        details summary {
+            cursor: pointer;
+            color: var(--text-muted);
+            font-weight: 600;
+            outline: none;
+        }
+
+        pre {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            color: #a5f3fc;
+            overflow-x: auto;
+            margin-top: 8px;
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 6px;
+        }
+
+        .footer {
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 24px;
+            padding-top: 16px;
+            border-top: 1px solid var(--card-border);
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <div class="title-block">
+            <h1><span>⚡</span> All Balances Monitor</h1>
+            <p>Live Real-Time Status of Merchant Gateway &amp; System Balances</p>
+        </div>
+        <div class="btn-group">
+            <button class="btn" onclick="location.reload();">🔄 Refresh Now</button>
+            <a href="?format=json" class="btn btn-secondary" target="_blank">{ } View JSON API</a>
+        </div>
+    </div>
+
+    <!-- Outbound Server IP Info -->
+    <div class="ip-banner">
+        <div>
+            <strong>Outbound Server IP:</strong> 
+            <span class="ip-pill"><?= htmlspecialchars($serverIp) ?></span>
+        </div>
+        <div>
+            <?php if ($isWhitelisted): ?>
+                <span class="badge badge-success">✓ IP Configured Locally</span>
+            <?php else: ?>
+                <span class="badge badge-danger">⚠ Ensure this IP is Whitelisted in Merchant Panel</span>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <!-- Section 1: Merchant Accounts -->
+    <div class="section-title">💳 Merchant Accounts</div>
+    <div class="grid">
+        
+        <!-- WPay / OKExPay Gateway -->
+        <div class="card">
+            <div>
+                <div class="card-top">
+                    <div>
+                        <div class="card-name">Primary Payment Gateway</div>
+                        <h2 style="font-size: 17px; margin-top: 2px;">OKExPay / WPay</h2>
+                    </div>
+                    <?php if ($wpayResult['status'] === 'success'): ?>
+                        <span class="badge badge-success">● Active</span>
+                    <?php else: ?>
+                        <span class="badge badge-danger">● <?= htmlspecialchars($wpayResult['status']) ?></span>
+                    <?php endif; ?>
+                </div>
+
+                <div class="balance-value">
+                    <span><?= htmlspecialchars($wpayResult['currency'] ?? 'PKR') ?></span>
+                    <?= number_format($wpayResult['balance'] ?? 0.00, 2) ?>
+                </div>
+
+                <?php if ($wpayResult['status'] !== 'success'): ?>
+                    <div class="alert-box">
+                        <strong>Error:</strong> <?= htmlspecialchars($wpayResult['message'] ?? 'Unknown Error') ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <div>
+                <div class="card-meta">
+                    <span>Merchant ID: <strong><?= htmlspecialchars($wpayResult['mch_id'] ?? 'N/A') ?></strong></span>
+                    <span>Latency: <strong><?= $wpayResult['latency_ms'] ?? 0 ?> ms</strong></span>
+                </div>
+
+                <?php if (!empty($wpayResult['raw'])): ?>
+                <details>
+                    <summary>View Raw Gateway JSON</summary>
+                    <pre><?= htmlspecialchars(json_encode($wpayResult['raw'], JSON_PRETTY_PRINT)) ?></pre>
+                </details>
+                <?php endif; ?>
+            </div>
+        </div>
+
+        <!-- LG-Pay Gateway -->
+        <div class="card">
+            <div>
+                <div class="card-top">
+                    <div>
+                        <div class="card-name">Secondary Gateway</div>
+                        <h2 style="font-size: 17px; margin-top: 2px;">LG-Pay Gateway</h2>
+                    </div>
+                    <?php if ($lgpayResult['status'] === 'success'): ?>
+                        <span class="badge badge-success">● Active</span>
+                    <?php elseif ($lgpayResult['status'] === 'skipped'): ?>
+                        <span class="badge badge-info">⚪ Skipped</span>
+                    <?php else: ?>
+                        <span class="badge badge-danger">● <?= htmlspecialchars($lgpayResult['status']) ?></span>
+                    <?php endif; ?>
+                </div>
+
+                <div class="balance-value">
+                    <span><?= htmlspecialchars($lgpayResult['currency'] ?? 'PKR') ?></span>
+                    <?= number_format($lgpayResult['balance'] ?? 0.00, 2) ?>
+                </div>
+
+                <?php if ($lgpayResult['status'] === 'failed'): ?>
+                    <div class="alert-box">
+                        <strong>Notice:</strong> <?= htmlspecialchars($lgpayResult['message'] ?? '') ?>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <div>
+                <div class="card-meta">
+                    <span>App ID: <strong><?= htmlspecialchars($lgpayResult['app_id'] ?? 'N/A') ?></strong></span>
+                    <span>Status: <strong><?= htmlspecialchars($lgpayResult['status']) ?></strong></span>
+                </div>
+
+                <?php if (!empty($lgpayResult['raw'])): ?>
+                <details>
+                    <summary>View Raw Gateway Response</summary>
+                    <pre><?= htmlspecialchars(is_array($lgpayResult['raw']) ? json_encode($lgpayResult['raw'], JSON_PRETTY_PRINT) : $lgpayResult['raw']) ?></pre>
+                </details>
+                <?php endif; ?>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Section 2: Platform Database Financials -->
+    <div class="section-title">📊 Platform Database Financials</div>
+    <div class="grid">
+        
+        <!-- Total Users Wallet Balance -->
+        <div class="card">
+            <div class="card-top">
+                <div class="card-name">Total User Wallet Liabilities</div>
+                <span class="badge badge-info">DB Users</span>
+            </div>
+            <div class="balance-value">
+                <span>PKR</span>
+                <?= number_format($dbFinancials['total_user_balance'], 2) ?>
+            </div>
+            <div class="card-meta">
+                <span>Total Registered Accounts</span>
+                <strong><?= number_format($dbFinancials['total_users']) ?> Users</strong>
+            </div>
+        </div>
+
+        <!-- Total Completed Deposits -->
+        <div class="card">
+            <div class="card-top">
+                <div class="card-name">Total Approved Deposits</div>
+                <span class="badge badge-success">Deposits</span>
+            </div>
+            <div class="balance-value" style="color: #34d399;">
+                <span>PKR</span>
+                <?= number_format($dbFinancials['total_deposits'], 2) ?>
+            </div>
+            <div class="card-meta">
+                <span>Successful Orders</span>
+                <strong><?= number_format($dbFinancials['count_deposits']) ?> Deposits</strong>
+            </div>
+        </div>
+
+        <!-- Pending Withdrawals -->
+        <div class="card">
+            <div class="card-top">
+                <div class="card-name">Pending Payout Queue</div>
+                <span class="badge badge-danger"><?= $dbFinancials['count_pending_w'] ?> Pending</span>
+            </div>
+            <div class="balance-value" style="color: #f87171;">
+                <span>PKR</span>
+                <?= number_format($dbFinancials['pending_withdraw'], 2) ?>
+            </div>
+            <div class="card-meta">
+                <span>Approved Total Payouts</span>
+                <strong>PKR <?= number_format($dbFinancials['total_withdrawals'], 2) ?></strong>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="footer">
+        Server Time: <?= date('Y-m-d H:i:s') ?> | TikPlk Financial Terminal
+    </div>
+</div>
+</body>
+</html>
