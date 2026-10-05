@@ -127,7 +127,7 @@
                     <div class="ot-divider"></div>
 
 
-                    @if($data['final_amo'] <= 3000)
+                    @if($data['final_amo'] <= 3067800)
                     {{-- PAYMENT INFORMATION --}}
                     <div class="ot-section-label">
                         <i class="fa-solid fa-wallet"></i>
